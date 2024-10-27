@@ -5,15 +5,15 @@ import "base:runtime"
 import "core:fmt"
 import win32 "core:sys/windows"
 
-@(private="file")
+@(private = "file")
 L :: intrinsics.constant_utf16_cstring
 
 Window :: struct {
-	instance: win32.HINSTANCE,
-	class_name: win32.LPCWSTR,
+	instance:     win32.HINSTANCE,
+	class_name:   win32.LPCWSTR,
 	window_class: win32.WNDCLASSW,
-	atom: win32.ATOM,
-	hwnd: win32.HWND,
+	atom:         win32.ATOM,
+	hwnd:         win32.HWND,
 }
 
 show_windows_error_and_panic :: proc(msg: string, loc := #caller_location) {
@@ -45,7 +45,7 @@ wndproc :: proc "system" (
 		width := win32.LOWORD(lparam)
 		height := win32.HIWORD(lparam)
 
-		on_size(hwnd, cast(win32.UINT) wparam, width, height)
+		on_size(hwnd, cast(win32.UINT)wparam, width, height)
 	case:
 		return win32.DefWindowProcW(hwnd, msg, wparam, lparam)
 	}
@@ -61,8 +61,8 @@ create_window :: proc(title: win32.LPCWSTR, width: i32, height: i32) -> Window {
 	if (window.instance == nil) {show_windows_error_and_panic("No instance")}
 
 	window.window_class = win32.WNDCLASSW {
-		lpfnWndProc = wndproc,
-		hInstance = window.instance,
+		lpfnWndProc   = wndproc,
+		hInstance     = window.instance,
 		lpszClassName = window.class_name,
 	}
 
