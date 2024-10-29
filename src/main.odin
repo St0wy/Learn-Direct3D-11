@@ -252,7 +252,7 @@ main :: proc() {
 		&depth_stencil_state,
 	)
 
-	Constants :: struct #align(16) {
+	Constants :: struct #align (16) {
 		transform:    glm.mat4,
 		projection:   glm.mat4,
 		light_vector: glm.vec3,
@@ -301,9 +301,147 @@ main :: proc() {
 		&vertex_buffer,
 	)
 
+	texture_description := d3d11.TEXTURE2D_DESC {
+		Width = TEXTURE_WIDTH,
+		Height = TEXTURE_HEIGHT,
+		MipLevels = 1,
+		ArraySize = 1,
+		Format = .R8G8B8A8_UNORM_SRGB,
+		SampleDesc = {Count = 1},
+		Usage = .IMMUTABLE,
+		BindFlags = {.SHADER_RESOURCE},
+	}
+
+	texture_data := d3d11.SUBRESOURCE_DATA {
+		pSysMem     = &texture_data[0],
+		SysMemPitch = TEXTURE_WIDTH * 4,
+	}
+
+	texture: ^d3d11.ITexture2D
+	renderer.device->CreateTexture2D(
+		&texture_description,
+		&texture_data,
+		&texture,
+	)
+
+	texture_view: ^d3d11.IShaderResourceView
+	renderer.device->CreateShaderResourceView(texture, nil, &texture_view)
+
+
+	vertex_buffer_stride := u32(11 * 4)
+	vertex_buffer_offset := u32(0)
+
+	model_rotation := glm.vec3{0.0, 0.0, 0.0}
+	model_translation := glm.vec3{0.0, 0.0, 0.0}
+
 	msg: win32.MSG
 	for (win32.GetMessageW(&msg, nil, 0, 0) > 0) {
 		win32.TranslateMessage(&msg)
 		win32.DispatchMessageW(&msg)
+
+		viewport := d3d11.VIEWPORT {
+			0,
+			0,
+			f32(depth_buffer_description.Width),
+			f32(depth_buffer_description.Height),
+			0,
+			1,
+		}
+
+		w := viewport.Width / viewport.Height
+		h := f32(1)
+		n := f32(1)
+		f := f32(9)
+
+		rotate_x := glm.mat4Rotate({1, 0, 0}, model_rotation.x)
+		rotate_y := glm.mat4Rotate({0, 1, 0}, model_rotation.y)
+		rotate_z := glm.mat4Rotate({0, 0, 1}, model_rotation.z)
+		translate := glm.mat4Translate(model_translation)
+
+		model_rotation.x += 0.005
+		model_rotation.y += 0.009
+		model_rotation.z += 0.001
+
+		mapped_subresource: d3d11.MAPPED_SUBRESOURCE
+		renderer.device_context->Map(
+			constant_buffer,
+			0,
+			.WRITE_DISCARD,
+			{},
+			&mapped_subresource,
+		)
+		{
+			constants := (^Constants)(mapped_subresource.pData)
+			constants.transform = translate * rotate_z * rotate_y * rotate_x
+			constants.light_vector = {+1, -1, +1}
+
+			constants.projection = {
+				2 * n / w,
+				0,
+				0,
+				0,
+				0,
+				2 * n / h,
+				0,
+				0,
+				0,
+				0,
+				f / (f - n),
+				n * f / (n - f),
+				0,
+				0,
+				1,
+				0,
+			}
+		}
+		renderer.device_context->Unmap(constant_buffer, 0)
+
+		renderer.device_context->ClearRenderTargetView(
+			framebuffer_view,
+			&[4]f32{0.25, 0.5, 1.0, 1.0},
+		)
+		renderer.device_context->ClearDepthStencilView(
+			depth_buffer_description,
+			{.DEPTH},
+			1,
+			0,
+		)
+
+		renderer.device_context->IASetPrimitiveTopology(.TRIANGLELIST)
+		renderer.device_context->IASetInputLayout(input_layout)
+		renderer.device_context->IASetVertexBuffers(
+			0,
+			1,
+			&vertex_buffer,
+			&vertex_buffer_stride,
+			&vertex_buffer_offset,
+		)
+		renderer.device_context->IASetIndexBuffer(index_buffer, .R32_UINT, 0)
+
+		renderer.device_context->VSSetShader(vertex_shader, nil, 0)
+		renderer.device_context->VSSetConstantBuffers(0, 1, &constant_buffer)
+
+		renderer.device_context->RSSetViewports(1, &viewport)
+		renderer.device_context->RSSetState(rasterizer_state)
+
+		renderer.device_context->PSSetShader(pixel_shader, nil, 0)
+		renderer.device_context->PSSetShaderResources(0, 1, &texture_view)
+		renderer.device_context->PSSetSamplers(0, 1, &sampler_state)
+
+		renderer.device_context->OMSetRenderTargets(
+			1,
+			&renderer.framebuffer_view,
+			renderer.depth_buffer_view,
+		)
+		renderer.device_context->OMSetDepthStencilState(depth_stencil_state, 0)
+		renderer.device_context->OMSetBlendState(
+			nil,
+			nil,
+			u32(d3d11.COLOR_WRITE_ENABLE_ALL),
+		)
+
+		renderer.device_context->DrawIndexed(len(index_data), 0, 0)
+
+		renderer.swapchain->Present(1, 0)
 	}
 }
