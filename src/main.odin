@@ -327,6 +327,7 @@ main :: proc() {
 	texture_view: ^d3d11.IShaderResourceView
 	renderer.device->CreateShaderResourceView(texture, nil, &texture_view)
 
+	clear_color := [?]f32{0.025, 0.025, 0.025, 1.0}
 
 	vertex_buffer_stride := u32(11 * 4)
 	vertex_buffer_offset := u32(0)
@@ -334,10 +335,14 @@ main :: proc() {
 	model_rotation := glm.vec3{0.0, 0.0, 0.0}
 	model_translation := glm.vec3{0.0, 0.0, 0.0}
 
-	msg: win32.MSG
-	for (win32.GetMessageW(&msg, nil, 0, 0) > 0) {
-		win32.TranslateMessage(&msg)
-		win32.DispatchMessageW(&msg)
+	quit := false
+	for (quit) {
+		msg: win32.MSG
+		for (win32.PeekMessageW(&msg, nil, 0, 0, win32.PM_REMOVE)) {
+			win32.TranslateMessage(&msg)
+			// Handle message here
+			win32.DispatchMessageW(&msg)
+		}
 
 		viewport := d3d11.VIEWPORT {
 			0,
@@ -363,6 +368,7 @@ main :: proc() {
 		model_rotation.z += 0.001
 
 		mapped_subresource: d3d11.MAPPED_SUBRESOURCE
+
 		renderer.device_context->Map(
 			constant_buffer,
 			0,
@@ -397,11 +403,11 @@ main :: proc() {
 		renderer.device_context->Unmap(constant_buffer, 0)
 
 		renderer.device_context->ClearRenderTargetView(
-			framebuffer_view,
-			&[4]f32{0.25, 0.5, 1.0, 1.0},
+			renderer.framebuffer_view,
+			&clear_color,
 		)
 		renderer.device_context->ClearDepthStencilView(
-			depth_buffer_description,
+			renderer.depth_buffer_view,
 			{.DEPTH},
 			1,
 			0,
@@ -442,6 +448,7 @@ main :: proc() {
 
 		renderer.device_context->DrawIndexed(len(index_data), 0, 0)
 
-		renderer.swapchain->Present(1, 0)
+		renderer.swapchain->Present(1, {.TEST})
+		// if (result != 0) {fmt.printfln("res : %i", result)}
 	}
 }
