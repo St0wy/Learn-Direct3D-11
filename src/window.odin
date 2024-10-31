@@ -39,13 +39,10 @@ wndproc :: proc "system" (
 	case win32.WM_PAINT:
 		ps: win32.PAINTSTRUCT
 		hdc := win32.BeginPaint(hwnd, &ps)
-		win32.FillRect(hdc, &ps.rcPaint, cast(win32.HBRUSH)(cast(uintptr)(win32.COLOR_WINDOW + 1)))
 		win32.EndPaint(hwnd, &ps)
-	case win32.WM_SIZE:
-		width := win32.LOWORD(lparam)
-		height := win32.HIWORD(lparam)
-
-		on_size(hwnd, cast(win32.UINT)wparam, width, height)
+	// case win32.WM_SIZE:
+	// 	width := win32.LOWORD(lparam)
+	// 	height := win32.HIWORD(lparam)
 	case:
 		return win32.DefWindowProcW(hwnd, msg, wparam, lparam)
 	}
@@ -53,21 +50,29 @@ wndproc :: proc "system" (
 	return 0
 }
 
-create_window :: proc(title: win32.LPCWSTR, width: i32, height: i32) -> Window {
+create_window :: proc(
+	title: win32.LPCWSTR,
+	width: i32,
+	height: i32,
+) -> (
+	Window,
+	bool,
+) {
 	window: Window
 	window.class_name = L("OdinMainClass")
 
 	window.instance = win32.HINSTANCE(win32.GetModuleHandleW(nil))
-	if (window.instance == nil) {show_windows_error_and_panic("No instance")}
+	if (window.instance == nil) {return window, false}
 
 	window.window_class = win32.WNDCLASSW {
 		lpfnWndProc   = wndproc,
 		hInstance     = window.instance,
 		lpszClassName = window.class_name,
+		hCursor       = win32.LoadCursorA(nil, win32.IDC_ARROW),
 	}
 
 	window.atom = win32.RegisterClassW(&window.window_class)
-	if window.atom == 0 {show_windows_error_and_panic("Failed to register window class")}
+	if window.atom == 0 {return window, false}
 
 	window.hwnd = win32.CreateWindowExW(
 		0,
@@ -83,14 +88,19 @@ create_window :: proc(title: win32.LPCWSTR, width: i32, height: i32) -> Window {
 		window.instance,
 		nil,
 	)
-	if window.hwnd == nil {show_windows_error_and_panic("Failed to create window")}
+	if window.hwnd == nil {return window, false}
 	win32.ShowWindow(window.hwnd, win32.SW_SHOWDEFAULT)
 
-	return window
+	return window, true
 }
 
 destroy_window :: proc(window: Window) {
-	if !win32.UnregisterClassW(win32.LPCWSTR(uintptr(window.atom)), window.instance) {
-		show_windows_error_and_panic("Could not unregister window successfully")
+	if !win32.UnregisterClassW(
+		win32.LPCWSTR(uintptr(window.atom)),
+		window.instance,
+	) {
+		show_windows_error_and_panic(
+			"Could not unregister window successfully",
+		)
 	}
 }

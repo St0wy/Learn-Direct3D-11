@@ -29,20 +29,22 @@ Direct3DRenderer :: struct {
 
 main :: proc() {
 	renderer: Direct3DRenderer
-	renderer.window = create_window(
+	window_succes: bool
+	renderer.window, window_succes = create_window(
 		L("Hello"),
 		win32.CW_USEDEFAULT,
 		win32.CW_USEDEFAULT,
 	)
+	if (!window_succes) {fmt.printfln("Could not destroy window.");return}
 	defer destroy_window(renderer.window)
 
-	feature_levels := [1]d3d11.FEATURE_LEVEL{d3d11.FEATURE_LEVEL._11_0}
+	feature_levels := [1]d3d11.FEATURE_LEVEL{._11_0}
 
 	result := d3d11.CreateDevice(
 		nil,
 		.HARDWARE,
 		nil,
-		{.BGRA_SUPPORT},
+		{.BGRA_SUPPORT, .DEBUG}, // TODO remove debug on release
 		&feature_levels[0],
 		len(feature_levels),
 		d3d11.SDK_VERSION,
@@ -92,6 +94,7 @@ main :: proc() {
 		Scaling = .STRETCH,
 		SwapEffect = .DISCARD,
 		AlphaMode = .UNSPECIFIED,
+		Flags = {},
 	}
 
 	renderer.dxgi_factory->CreateSwapChainForHwnd(
@@ -333,15 +336,15 @@ main :: proc() {
 	vertex_buffer_offset := u32(0)
 
 	model_rotation := glm.vec3{0.0, 0.0, 0.0}
-	model_translation := glm.vec3{0.0, 0.0, 0.0}
+	model_translation := glm.vec3{0.0, 0.0, 4.0}
 
-	quit := false
-	for (quit) {
-		msg: win32.MSG
-		for (win32.PeekMessageW(&msg, nil, 0, 0, win32.PM_REMOVE)) {
+	msg: win32.MSG
+	for (msg.message != win32.WM_QUIT) {
+		if (win32.PeekMessageW(&msg, nil, 0, 0, win32.PM_REMOVE)) {
 			win32.TranslateMessage(&msg)
-			// Handle message here
+			// Handle message here maybe
 			win32.DispatchMessageW(&msg)
+			continue
 		}
 
 		viewport := d3d11.VIEWPORT {
@@ -443,12 +446,12 @@ main :: proc() {
 		renderer.device_context->OMSetBlendState(
 			nil,
 			nil,
-			u32(d3d11.COLOR_WRITE_ENABLE_ALL),
+			~u32(0),
 		)
 
 		renderer.device_context->DrawIndexed(len(index_data), 0, 0)
 
-		renderer.swapchain->Present(1, {.TEST})
+		renderer.swapchain->Present(1, {})
 		// if (result != 0) {fmt.printfln("res : %i", result)}
 	}
 }
