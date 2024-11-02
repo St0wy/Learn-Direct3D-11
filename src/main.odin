@@ -27,6 +27,22 @@ Direct3DRenderer :: struct {
 	depth_buffer_view:   ^d3d11.IDepthStencilView,
 }
 
+check_error :: #force_inline proc(
+	msg: string,
+	result: win32.HRESULT,
+	loc := #caller_location,
+) {
+	when ODIN_DEBUG {
+		if (result != win32.S_OK) {
+			fmt.printfln("Last Windows error: %x", win32.GetLastError())
+			panic(
+				fmt.tprintfln("%s with error : %X", msg, u32(result)),
+				loc = loc,
+			)
+		}
+	}
+}
+
 main :: proc() {
 	renderer: Direct3DRenderer
 	window_succes: bool
@@ -35,16 +51,22 @@ main :: proc() {
 		win32.CW_USEDEFAULT,
 		win32.CW_USEDEFAULT,
 	)
-	if (!window_succes) {fmt.printfln("Could not destroy window.");return}
+	if (!window_succes) {fmt.printfln("Could not create window.");return}
 	defer destroy_window(renderer.window)
 
 	feature_levels := [1]d3d11.FEATURE_LEVEL{._11_0}
+
+	device_flags := d3d11.CREATE_DEVICE_FLAGS{.BGRA_SUPPORT}
+
+	when ODIN_DEBUG {
+		device_flags |= {.DEBUG}
+	}
 
 	result := d3d11.CreateDevice(
 		nil,
 		.HARDWARE,
 		nil,
-		{.BGRA_SUPPORT, .DEBUG}, // TODO remove debug on release
+		device_flags,
 		&feature_levels[0],
 		len(feature_levels),
 		d3d11.SDK_VERSION,
@@ -52,36 +74,38 @@ main :: proc() {
 		nil,
 		&renderer.base_device_context,
 	)
-	if (result != 0) {
-		show_windows_error_and_panic(
-			fmt.tprintf(
-				"Could not create D3D11 device with error : %X",
-				u32(result),
-			),
-		)
-	}
+	check_error("Could not create D3D11 device", result)
 
+	result =
 	renderer.base_device->QueryInterface(
 		d3d11.IDevice_UUID,
 		(^rawptr)(&renderer.device),
 	)
+	check_error("Could not create base device", result)
 
+	result =
 	renderer.base_device_context->QueryInterface(
 		d3d11.IDeviceContext_UUID,
 		(^rawptr)(&renderer.device_context),
 	)
+	check_error("Could not create base device context", result)
 
+	result =
 	renderer.device->QueryInterface(
 		dxgi.IDevice_UUID,
 		(^rawptr)(&renderer.dxgi_device),
 	)
+	check_error("Could not create device", result)
 
-	renderer.dxgi_device->GetAdapter(&renderer.dxgi_adapter)
+	result = renderer.dxgi_device->GetAdapter(&renderer.dxgi_adapter)
+	check_error("Could not get adapter", result)
 
+	result =
 	renderer.dxgi_adapter->GetParent(
 		dxgi.IFactory2_UUID,
 		(^rawptr)(&renderer.dxgi_factory),
 	)
+	check_error("Could not make dxgi factory", result)
 
 	swapchain_description := dxgi.SWAP_CHAIN_DESC1 {
 		Width = 0,
@@ -97,6 +121,7 @@ main :: proc() {
 		Flags = {},
 	}
 
+	result =
 	renderer.dxgi_factory->CreateSwapChainForHwnd(
 		renderer.device,
 		renderer.window.hwnd,
@@ -105,40 +130,49 @@ main :: proc() {
 		nil,
 		&renderer.swapchain,
 	)
+	check_error("Could not create swapchain", result)
 
+	result =
 	renderer.swapchain->GetBuffer(
 		0,
 		d3d11.ITexture2D_UUID,
 		(^rawptr)(&renderer.framebuffer),
 	)
+	check_error("Could not get framebuffer from swapchain", result)
 
+	result =
 	renderer.device->CreateRenderTargetView(
 		renderer.framebuffer,
 		nil,
 		&renderer.framebuffer_view,
 	)
+	check_error("Could not create render target (framebuffer) view", result)
 
 	depth_buffer_description: d3d11.TEXTURE2D_DESC
 	renderer.framebuffer->GetDesc(&depth_buffer_description)
 	depth_buffer_description.Format = .D24_UNORM_S8_UINT
 	depth_buffer_description.BindFlags = {.DEPTH_STENCIL}
 
+	result =
 	renderer.device->CreateTexture2D(
 		&depth_buffer_description,
 		nil,
 		&renderer.depth_buffer,
 	)
+	check_error("Could not create depth buffer", result)
 
+	result =
 	renderer.device->CreateDepthStencilView(
 		renderer.depth_buffer,
 		nil,
 		&renderer.depth_buffer_view,
 	)
+	check_error("Could not create depth buffer view", result)
 
 	shader_source := #load("shaders/shaders.hlsl")
 
 	vs_blob: ^d3d11.IBlob
-	d3d.Compile(
+	result = d3d.Compile(
 		raw_data(shader_source),
 		len(shader_source),
 		"shaders.hlsl",
@@ -152,14 +186,17 @@ main :: proc() {
 		nil,
 	)
 	assert(vs_blob != nil)
+	check_error("Could not compiler vertex shader", result)
 
 	vertex_shader: ^d3d11.IVertexShader
+	result =
 	renderer.device->CreateVertexShader(
 		vs_blob->GetBufferPointer(),
 		vs_blob->GetBufferSize(),
 		nil,
 		&vertex_shader,
 	)
+	check_error("Could not create vertex shader", result)
 
 	input_element_desc := [?]d3d11.INPUT_ELEMENT_DESC {
 		{"POS", 0, .R32G32B32_FLOAT, 0, 0, .VERTEX_DATA, 0},
@@ -193,6 +230,7 @@ main :: proc() {
 	}
 
 	input_layout: ^d3d11.IInputLayout
+	result =
 	renderer.device->CreateInputLayout(
 		&input_element_desc[0],
 		len(input_element_desc),
@@ -200,9 +238,10 @@ main :: proc() {
 		vs_blob->GetBufferSize(),
 		&input_layout,
 	)
+	check_error("Could not create input layout", result)
 
 	ps_blob: ^d3d11.IBlob
-	d3d.Compile(
+	result = d3d.Compile(
 		raw_data(shader_source),
 		len(shader_source),
 		"shaders.hlsl",
@@ -215,24 +254,29 @@ main :: proc() {
 		&ps_blob,
 		nil,
 	)
+	check_error("Could not compile pixel shader", result)
 
 	pixel_shader: ^d3d11.IPixelShader
+	result =
 	renderer.device->CreatePixelShader(
 		ps_blob->GetBufferPointer(),
 		ps_blob->GetBufferSize(),
 		nil,
 		&pixel_shader,
 	)
+	check_error("Could not create pixel shader", result)
 
 	rasterizer_description := d3d11.RASTERIZER_DESC {
 		FillMode = .SOLID,
 		CullMode = .BACK,
 	}
 	rasterizer_state: ^d3d11.IRasterizerState
+	result =
 	renderer.device->CreateRasterizerState(
 		&rasterizer_description,
 		&rasterizer_state,
 	)
+	check_error("Could not create rasterizer state", result)
 
 	sampler_description := d3d11.SAMPLER_DESC {
 		Filter         = .MIN_MAG_MIP_POINT,
@@ -242,7 +286,9 @@ main :: proc() {
 		ComparisonFunc = .NEVER,
 	}
 	sampler_state: ^d3d11.ISamplerState
+	result =
 	renderer.device->CreateSamplerState(&sampler_description, &sampler_state)
+	check_error("Could not create sampler state", result)
 
 	depth_stencil_description := d3d11.DEPTH_STENCIL_DESC {
 		DepthEnable    = true,
@@ -250,10 +296,12 @@ main :: proc() {
 		DepthFunc      = .LESS,
 	}
 	depth_stencil_state: ^d3d11.IDepthStencilState
+	result =
 	renderer.device->CreateDepthStencilState(
 		&depth_stencil_description,
 		&depth_stencil_state,
 	)
+	check_error("Could not create depth stencil state", result)
 
 	Constants :: struct #align (16) {
 		transform:    glm.mat4,
@@ -268,11 +316,13 @@ main :: proc() {
 		CPUAccessFlags = {.WRITE},
 	}
 	constant_buffer: ^d3d11.IBuffer
+	result =
 	renderer.device->CreateBuffer(
 		&constant_buffer_description,
 		nil,
 		&constant_buffer,
 	)
+	check_error("Could not create constant buffer", result)
 
 	vertex_buffer_description := d3d11.BUFFER_DESC {
 		ByteWidth = size_of(vertex_data),
@@ -280,6 +330,7 @@ main :: proc() {
 		BindFlags = {.VERTEX_BUFFER},
 	}
 	vertex_buffer: ^d3d11.IBuffer
+	result =
 	renderer.device->CreateBuffer(
 		&vertex_buffer_description,
 		&d3d11.SUBRESOURCE_DATA {
@@ -288,6 +339,7 @@ main :: proc() {
 		},
 		&vertex_buffer,
 	)
+	check_error("Could not create vertex buffer", result)
 
 	index_buffer_description := d3d11.BUFFER_DESC {
 		ByteWidth = size_of(index_data),
@@ -295,14 +347,16 @@ main :: proc() {
 		BindFlags = {.INDEX_BUFFER},
 	}
 	index_buffer: ^d3d11.IBuffer
+	result =
 	renderer.device->CreateBuffer(
 		&index_buffer_description,
 		&d3d11.SUBRESOURCE_DATA {
 			pSysMem = &index_data[0],
 			SysMemPitch = size_of(index_data),
 		},
-		&vertex_buffer,
+		&index_buffer,
 	)
+	check_error("Could not create index buffer", result)
 
 	texture_description := d3d11.TEXTURE2D_DESC {
 		Width = TEXTURE_WIDTH,
@@ -321,14 +375,16 @@ main :: proc() {
 	}
 
 	texture: ^d3d11.ITexture2D
-	renderer.device->CreateTexture2D(
+	result = renderer.device->CreateTexture2D(
 		&texture_description,
 		&texture_data,
 		&texture,
 	)
+	check_error("Could not create model texture", result)
 
 	texture_view: ^d3d11.IShaderResourceView
-	renderer.device->CreateShaderResourceView(texture, nil, &texture_view)
+	result = renderer.device->CreateShaderResourceView(texture, nil, &texture_view)
+	check_error("Could not create shader resource view", result)
 
 	clear_color := [?]f32{0.025, 0.025, 0.025, 1.0}
 
@@ -443,15 +499,11 @@ main :: proc() {
 			renderer.depth_buffer_view,
 		)
 		renderer.device_context->OMSetDepthStencilState(depth_stencil_state, 0)
-		renderer.device_context->OMSetBlendState(
-			nil,
-			nil,
-			~u32(0),
-		)
+		renderer.device_context->OMSetBlendState(nil, nil, ~u32(0))
 
 		renderer.device_context->DrawIndexed(len(index_data), 0, 0)
 
-		renderer.swapchain->Present(1, {})
-		// if (result != 0) {fmt.printfln("res : %i", result)}
+		result = renderer.swapchain->Present(1, {})
+		check_error("Could not present swapchain", result)
 	}
 }

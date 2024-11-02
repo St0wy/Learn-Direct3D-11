@@ -2,7 +2,6 @@ package main
 
 import "base:intrinsics"
 import "base:runtime"
-import "core:fmt"
 import win32 "core:sys/windows"
 
 @(private = "file")
@@ -16,14 +15,9 @@ Window :: struct {
 	hwnd:         win32.HWND,
 }
 
-show_windows_error_and_panic :: proc(msg: string, loc := #caller_location) {
-	fmt.printf("%s\nLast error: %x\n", msg, win32.GetLastError())
-	panic(msg, loc = loc)
-}
+// on_size :: proc(hwnd: win32.HWND, flag: win32.UINT, width: u16, height: u16) {
 
-on_size :: proc(hwnd: win32.HWND, flag: win32.UINT, width: u16, height: u16) {
-
-}
+// }
 
 wndproc :: proc "system" (
 	hwnd: win32.HWND,
@@ -38,7 +32,7 @@ wndproc :: proc "system" (
 		return 0
 	case win32.WM_PAINT:
 		ps: win32.PAINTSTRUCT
-		hdc := win32.BeginPaint(hwnd, &ps)
+		win32.BeginPaint(hwnd, &ps)
 		win32.EndPaint(hwnd, &ps)
 	// case win32.WM_SIZE:
 	// 	width := win32.LOWORD(lparam)
@@ -66,6 +60,7 @@ create_window :: proc(
 
 	window.window_class = win32.WNDCLASSW {
 		lpfnWndProc   = wndproc,
+		// lpfnWndProc   = win32.DefWindowProcW,
 		hInstance     = window.instance,
 		lpszClassName = window.class_name,
 		hCursor       = win32.LoadCursorA(nil, win32.IDC_ARROW),
@@ -99,8 +94,6 @@ destroy_window :: proc(window: Window) {
 		win32.LPCWSTR(uintptr(window.atom)),
 		window.instance,
 	) {
-		show_windows_error_and_panic(
-			"Could not unregister window successfully",
-		)
+		panic("Could not unregister window successfully")
 	}
 }
