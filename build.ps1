@@ -1,6 +1,6 @@
 if ($args[0] -eq "-r") {
     Write-Host "Building release..."
-    & odin build src -out:out/learn-directx-11.exe -o:aggressive -show-timings -disable-assert -no-bounds-check -lld -no-crt -subsystem:windows
+    & odin build src -out:out/learn-directx-11.exe -o:aggressive -show-timings -disable-assert -no-bounds-check -lld -subsystem:windows
 } else {
     Write-Host "Building debug..."
     & odin build src -out:out/learn-directx-11.exe -o:minimal -show-timings -debug -vet-unused -vet-unused-variables -vet-unused-imports -vet-shadowing `
