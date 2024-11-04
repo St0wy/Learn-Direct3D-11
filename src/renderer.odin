@@ -22,7 +22,11 @@ D3DRenderer :: struct {
 	framebuffer_view:    ^d3d11.IRenderTargetView,
 	depth_buffer:        ^d3d11.ITexture2D,
 	depth_buffer_view:   ^d3d11.IDepthStencilView,
+	rasterizer_state:    ^d3d11.IRasterizerState,
+	sampler_state:       ^d3d11.ISamplerState,
+	depth_stencil_state: ^d3d11.IDepthStencilState,
 	main_pipeline:       Pipeline,
+	constant_buffer:     ^d3d11.IBuffer,
 }
 
 Pipeline :: struct {
@@ -32,6 +36,11 @@ Pipeline :: struct {
 	ps_blob:        ^d3d11.IBlob,
 	pixel_shader:   ^d3d11.IPixelShader,
 	is_initialized: bool,
+}
+
+GpuMesh :: struct {
+	vertex_buffer: ^d3d11.IBuffer,
+	index_buffer:  ^d3d11.IBuffer,
 }
 
 check_error :: #force_inline proc(
@@ -212,6 +221,53 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 		return renderer, false
 	}
 
+	rasterizer_description := d3d11.RASTERIZER_DESC {
+		FillMode = .SOLID,
+		CullMode = .BACK,
+	}
+
+	result =
+	renderer.device->CreateRasterizerState(
+		&rasterizer_description,
+		&renderer.rasterizer_state,
+	)
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln("Could not create rasterizer state (%X)", u32(result))
+		return renderer, false
+	}
+
+	sampler_description := d3d11.SAMPLER_DESC {
+		Filter         = .MIN_MAG_MIP_POINT,
+		AddressU       = .WRAP,
+		AddressV       = .WRAP,
+		AddressW       = .WRAP,
+		ComparisonFunc = .NEVER,
+	}
+	result =
+	renderer.device->CreateSamplerState(
+		&sampler_description,
+		&renderer.sampler_state,
+	)
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln("Could not create sampler state (%X)", u32(result))
+		return renderer, false
+	}
+
+	depth_stencil_description := d3d11.DEPTH_STENCIL_DESC {
+		DepthEnable    = true,
+		DepthWriteMask = .ALL,
+		DepthFunc      = .LESS,
+	}
+	result =
+	renderer.device->CreateDepthStencilState(
+		&depth_stencil_description,
+		&renderer.depth_stencil_state,
+	)
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln("Could not create depth stencil state (%X)", u32(result))
+		return renderer, false
+	}
+
 	return renderer, true
 }
 
@@ -248,72 +304,89 @@ init_main_pipeline :: proc(
 		nil,
 	)
 	if (renderer.main_pipeline.vs_blob == nil) {return false}
-    if (!win32.SUCCEEDED(result)) {
+	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not compile vertex shader (%X)", u32(result))
 		return false
 	}
 
-	vertex_shader: ^d3d11.IVertexShader
 	result =
 	renderer.device->CreateVertexShader(
-		vs_blob->GetBufferPointer(),
-		vs_blob->GetBufferSize(),
+		renderer.main_pipeline.vs_blob->GetBufferPointer(),
+		renderer.main_pipeline.vs_blob->GetBufferSize(),
 		nil,
-		&vertex_shader,
+		&renderer.main_pipeline.vertex_shader,
 	)
-    if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln(" (%X)", u32(result))
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln("Could not create vertex shader (%X)", u32(result))
 		return false
 	}
-	check_error("Could not create vertex shader", result)
 
-
-	input_layout: ^d3d11.IInputLayout
 	result =
 	renderer.device->CreateInputLayout(
-		&input_element_desc[0],
-		len(input_element_desc),
-		vs_blob->GetBufferPointer(),
-		vs_blob->GetBufferSize(),
-		&input_layout,
+		&pipeline_descriptor.input_element_description[0],
+		cast(u32)len(pipeline_descriptor.input_element_description),
+		renderer.main_pipeline.vs_blob->GetBufferPointer(),
+		renderer.main_pipeline.vs_blob->GetBufferSize(),
+		&renderer.main_pipeline.input_layout,
 	)
-    if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln(" (%X)", u32(result))
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln("Could not create input layout (%X)", u32(result))
 		return false
 	}
-	check_error("Could not create input layout", result)
 
-	ps_blob: ^d3d11.IBlob
 	result = d3d.Compile(
-		raw_data(shader_source),
-		len(shader_source),
-		"shaders.hlsl",
+		raw_data(pipeline_descriptor.pixel_shader_source),
+		len(pipeline_descriptor.pixel_shader_source),
+		pipeline_descriptor.vertex_shader_filename,
 		nil,
 		nil,
-		"ps_main",
+		pipeline_descriptor.vertex_shader_entry,
 		"ps_5_0",
 		0,
 		0,
-		&ps_blob,
+		&renderer.main_pipeline.ps_blob,
 		nil,
 	)
-    if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln(" (%X)", u32(result))
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln("Could not compile pixel shader (%X)", u32(result))
 		return false
 	}
-	check_error("Could not compile pixel shader", result)
 
-	pixel_shader: ^d3d11.IPixelShader
 	result =
 	renderer.device->CreatePixelShader(
-		ps_blob->GetBufferPointer(),
-		ps_blob->GetBufferSize(),
+		renderer.main_pipeline.ps_blob->GetBufferPointer(),
+		renderer.main_pipeline.ps_blob->GetBufferSize(),
 		nil,
-		&pixel_shader,
+		&renderer.main_pipeline.pixel_shader,
 	)
-    if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln(" (%X)", u32(result))
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln("Could not create pixel shader (%X)", u32(result))
 		return false
 	}
-	check_error("Could not create pixel shader", result)
+
+	return true
+}
+
+init_constant_buffer :: proc(
+	renderer: ^D3DRenderer,
+	constants_size: u32,
+) -> bool {
+	constant_buffer_description := d3d11.BUFFER_DESC {
+		ByteWidth      = constants_size,
+		Usage          = .DYNAMIC,
+		BindFlags      = {.CONSTANT_BUFFER},
+		CPUAccessFlags = {.WRITE},
+	}
+
+	result := renderer.device->CreateBuffer(
+		&constant_buffer_description,
+		nil,
+		&renderer.constant_buffer,
+	)
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln("Could not create constant buffer (%X)", u32(result))
+		return false
+	}
+
+	return true
 }

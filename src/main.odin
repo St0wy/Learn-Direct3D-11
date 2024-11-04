@@ -66,108 +66,7 @@ main :: proc() {
 			pixel_shader_entry = "ps_main",
 		},
 	)
-
-	vs_blob: ^d3d11.IBlob
-	result := d3d.Compile(
-		raw_data(shader_source),
-		len(shader_source),
-		"shaders.hlsl",
-		nil,
-		nil,
-		"vs_main",
-		"vs_5_0",
-		0,
-		0,
-		&vs_blob,
-		nil,
-	)
-	assert(vs_blob != nil)
-	check_error("Could not compiler vertex shader", result)
-
-	vertex_shader: ^d3d11.IVertexShader
-	result =
-	renderer.device->CreateVertexShader(
-		vs_blob->GetBufferPointer(),
-		vs_blob->GetBufferSize(),
-		nil,
-		&vertex_shader,
-	)
-	check_error("Could not create vertex shader", result)
-
-
-	input_layout: ^d3d11.IInputLayout
-	result =
-	renderer.device->CreateInputLayout(
-		&input_element_desc[0],
-		len(input_element_desc),
-		vs_blob->GetBufferPointer(),
-		vs_blob->GetBufferSize(),
-		&input_layout,
-	)
-	check_error("Could not create input layout", result)
-
-	ps_blob: ^d3d11.IBlob
-	result = d3d.Compile(
-		raw_data(shader_source),
-		len(shader_source),
-		"shaders.hlsl",
-		nil,
-		nil,
-		"ps_main",
-		"ps_5_0",
-		0,
-		0,
-		&ps_blob,
-		nil,
-	)
-	check_error("Could not compile pixel shader", result)
-
-	pixel_shader: ^d3d11.IPixelShader
-	result =
-	renderer.device->CreatePixelShader(
-		ps_blob->GetBufferPointer(),
-		ps_blob->GetBufferSize(),
-		nil,
-		&pixel_shader,
-	)
-	check_error("Could not create pixel shader", result)
-
-	rasterizer_description := d3d11.RASTERIZER_DESC {
-		FillMode = .SOLID,
-		CullMode = .BACK,
-	}
-	rasterizer_state: ^d3d11.IRasterizerState
-	result =
-	renderer.device->CreateRasterizerState(
-		&rasterizer_description,
-		&rasterizer_state,
-	)
-	check_error("Could not create rasterizer state", result)
-
-	sampler_description := d3d11.SAMPLER_DESC {
-		Filter         = .MIN_MAG_MIP_POINT,
-		AddressU       = .WRAP,
-		AddressV       = .WRAP,
-		AddressW       = .WRAP,
-		ComparisonFunc = .NEVER,
-	}
-	sampler_state: ^d3d11.ISamplerState
-	result =
-	renderer.device->CreateSamplerState(&sampler_description, &sampler_state)
-	check_error("Could not create sampler state", result)
-
-	depth_stencil_description := d3d11.DEPTH_STENCIL_DESC {
-		DepthEnable    = true,
-		DepthWriteMask = .ALL,
-		DepthFunc      = .LESS,
-	}
-	depth_stencil_state: ^d3d11.IDepthStencilState
-	result =
-	renderer.device->CreateDepthStencilState(
-		&depth_stencil_description,
-		&depth_stencil_state,
-	)
-	check_error("Could not create depth stencil state", result)
+	assert(could_create_pipeline)
 
 	Constants :: struct #align (16) {
 		transform:    glm.mat4,
@@ -175,20 +74,16 @@ main :: proc() {
 		light_vector: glm.vec3,
 	}
 
-	constant_buffer_description := d3d11.BUFFER_DESC {
-		ByteWidth      = size_of(Constants),
-		Usage          = .DYNAMIC,
-		BindFlags      = {.CONSTANT_BUFFER},
-		CPUAccessFlags = {.WRITE},
-	}
-	constant_buffer: ^d3d11.IBuffer
-	result =
-	renderer.device->CreateBuffer(
-		&constant_buffer_description,
-		nil,
-		&constant_buffer,
+	could_init_const_buffer := init_constant_buffer(
+		&renderer,
+		size_of(Constants),
 	)
-	check_error("Could not create constant buffer", result)
+	assert(could_init_const_buffer)
+
+	mesh, could_load_mesh := load_mesh_from_obj_path(
+		"data/character-fame-a.obj",
+	)
+	// assert(could_load_mesh)
 
 	vertex_buffer_description := d3d11.BUFFER_DESC {
 		ByteWidth = size_of(vertex_data),
