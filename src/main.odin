@@ -8,195 +8,20 @@ import "vendor:directx/d3d11"
 import d3d "vendor:directx/d3d_compiler"
 import "vendor:directx/dxgi"
 
-@(private = "file")
-L :: intrinsics.constant_utf16_cstring
-
-Direct3DRenderer :: struct {
-	window:              Window,
-	base_device:         ^d3d11.IDevice,
-	base_device_context: ^d3d11.IDeviceContext,
-	device:              ^d3d11.IDevice,
-	device_context:      ^d3d11.IDeviceContext,
-	dxgi_device:         ^dxgi.IDevice,
-	dxgi_adapter:        ^dxgi.IAdapter,
-	dxgi_factory:        ^dxgi.IFactory2,
-	swapchain:           ^dxgi.ISwapChain1,
-	framebuffer:         ^d3d11.ITexture2D,
-	framebuffer_view:    ^d3d11.IRenderTargetView,
-	depth_buffer:        ^d3d11.ITexture2D,
-	depth_buffer_view:   ^d3d11.IDepthStencilView,
-}
-
-check_error :: #force_inline proc(
-	msg: string,
-	result: win32.HRESULT,
-	loc := #caller_location,
-) {
-	when ODIN_DEBUG {
-		if (result != win32.S_OK) {
-			fmt.printfln("Last Windows error: %x", win32.GetLastError())
-			panic(
-				fmt.tprintfln("%s with error : %X", msg, u32(result)),
-				loc = loc,
-			)
-		}
-	}
-}
-
 main :: proc() {
-	renderer: Direct3DRenderer
-	window_succes: bool
-	renderer.window, window_succes = create_window(
-		L("Hello"),
+	window, window_succes := create_window(
+		"Hello",
 		win32.CW_USEDEFAULT,
 		win32.CW_USEDEFAULT,
 	)
 	if (!window_succes) {fmt.printfln("Could not create window.");return}
-	defer destroy_window(renderer.window)
+	defer destroy_window(window)
 
-	feature_levels := [1]d3d11.FEATURE_LEVEL{._11_0}
-
-	device_flags := d3d11.CREATE_DEVICE_FLAGS{.BGRA_SUPPORT}
-
-	when ODIN_DEBUG {
-		device_flags |= {.DEBUG}
-	}
-
-	result := d3d11.CreateDevice(
-		nil,
-		.HARDWARE,
-		nil,
-		device_flags,
-		&feature_levels[0],
-		len(feature_levels),
-		d3d11.SDK_VERSION,
-		&renderer.base_device,
-		nil,
-		&renderer.base_device_context,
-	)
-	check_error("Could not create D3D11 device", result)
-
-	result =
-	renderer.base_device->QueryInterface(
-		d3d11.IDevice_UUID,
-		(^rawptr)(&renderer.device),
-	)
-	check_error("Could not create base device", result)
-
-	result =
-	renderer.base_device_context->QueryInterface(
-		d3d11.IDeviceContext_UUID,
-		(^rawptr)(&renderer.device_context),
-	)
-	check_error("Could not create base device context", result)
-
-	result =
-	renderer.device->QueryInterface(
-		dxgi.IDevice_UUID,
-		(^rawptr)(&renderer.dxgi_device),
-	)
-	check_error("Could not create device", result)
-
-	result = renderer.dxgi_device->GetAdapter(&renderer.dxgi_adapter)
-	check_error("Could not get adapter", result)
-
-	result =
-	renderer.dxgi_adapter->GetParent(
-		dxgi.IFactory2_UUID,
-		(^rawptr)(&renderer.dxgi_factory),
-	)
-	check_error("Could not make dxgi factory", result)
-
-	swapchain_description := dxgi.SWAP_CHAIN_DESC1 {
-		Width = 0,
-		Height = 0,
-		Format = .B8G8R8A8_UNORM_SRGB,
-		Stereo = false,
-		SampleDesc = {Count = 1, Quality = 0},
-		BufferUsage = {.RENDER_TARGET_OUTPUT},
-		BufferCount = 2,
-		Scaling = .STRETCH,
-		SwapEffect = .DISCARD,
-		AlphaMode = .UNSPECIFIED,
-		Flags = {},
-	}
-
-	result =
-	renderer.dxgi_factory->CreateSwapChainForHwnd(
-		renderer.device,
-		renderer.window.hwnd,
-		&swapchain_description,
-		nil,
-		nil,
-		&renderer.swapchain,
-	)
-	check_error("Could not create swapchain", result)
-
-	result =
-	renderer.swapchain->GetBuffer(
-		0,
-		d3d11.ITexture2D_UUID,
-		(^rawptr)(&renderer.framebuffer),
-	)
-	check_error("Could not get framebuffer from swapchain", result)
-
-	result =
-	renderer.device->CreateRenderTargetView(
-		renderer.framebuffer,
-		nil,
-		&renderer.framebuffer_view,
-	)
-	check_error("Could not create render target (framebuffer) view", result)
-
-	depth_buffer_description: d3d11.TEXTURE2D_DESC
-	renderer.framebuffer->GetDesc(&depth_buffer_description)
-	depth_buffer_description.Format = .D24_UNORM_S8_UINT
-	depth_buffer_description.BindFlags = {.DEPTH_STENCIL}
-
-	result =
-	renderer.device->CreateTexture2D(
-		&depth_buffer_description,
-		nil,
-		&renderer.depth_buffer,
-	)
-	check_error("Could not create depth buffer", result)
-
-	result =
-	renderer.device->CreateDepthStencilView(
-		renderer.depth_buffer,
-		nil,
-		&renderer.depth_buffer_view,
-	)
-	check_error("Could not create depth buffer view", result)
+	renderer, renderer_success := create_renderer(window.hwnd)
+	assert(renderer_success)
+	defer destroy_renderer(&renderer)
 
 	shader_source := #load("shaders/shaders.hlsl")
-
-	vs_blob: ^d3d11.IBlob
-	result = d3d.Compile(
-		raw_data(shader_source),
-		len(shader_source),
-		"shaders.hlsl",
-		nil,
-		nil,
-		"vs_main",
-		"vs_5_0",
-		0,
-		0,
-		&vs_blob,
-		nil,
-	)
-	assert(vs_blob != nil)
-	check_error("Could not compiler vertex shader", result)
-
-	vertex_shader: ^d3d11.IVertexShader
-	result =
-	renderer.device->CreateVertexShader(
-		vs_blob->GetBufferPointer(),
-		vs_blob->GetBufferSize(),
-		nil,
-		&vertex_shader,
-	)
-	check_error("Could not create vertex shader", result)
 
 	input_element_desc := [?]d3d11.INPUT_ELEMENT_DESC {
 		{"POS", 0, .R32G32B32_FLOAT, 0, 0, .VERTEX_DATA, 0},
@@ -228,6 +53,47 @@ main :: proc() {
 			0,
 		},
 	}
+
+	could_create_pipeline := init_main_pipeline(
+		&renderer,
+		{
+			vertex_shader_source = shader_source,
+			vertex_shader_filename = "shaders.hlsl",
+			vertex_shader_entry = "vs_main",
+			input_element_description = input_element_desc[:],
+			pixel_shader_source = shader_source,
+			pixel_shader_filename = "shaders.hlsl",
+			pixel_shader_entry = "ps_main",
+		},
+	)
+
+	vs_blob: ^d3d11.IBlob
+	result := d3d.Compile(
+		raw_data(shader_source),
+		len(shader_source),
+		"shaders.hlsl",
+		nil,
+		nil,
+		"vs_main",
+		"vs_5_0",
+		0,
+		0,
+		&vs_blob,
+		nil,
+	)
+	assert(vs_blob != nil)
+	check_error("Could not compiler vertex shader", result)
+
+	vertex_shader: ^d3d11.IVertexShader
+	result =
+	renderer.device->CreateVertexShader(
+		vs_blob->GetBufferPointer(),
+		vs_blob->GetBufferSize(),
+		nil,
+		&vertex_shader,
+	)
+	check_error("Could not create vertex shader", result)
+
 
 	input_layout: ^d3d11.IInputLayout
 	result =
@@ -375,7 +241,8 @@ main :: proc() {
 	}
 
 	texture: ^d3d11.ITexture2D
-	result = renderer.device->CreateTexture2D(
+	result =
+	renderer.device->CreateTexture2D(
 		&texture_description,
 		&texture_data,
 		&texture,
@@ -383,7 +250,8 @@ main :: proc() {
 	check_error("Could not create model texture", result)
 
 	texture_view: ^d3d11.IShaderResourceView
-	result = renderer.device->CreateShaderResourceView(texture, nil, &texture_view)
+	result =
+	renderer.device->CreateShaderResourceView(texture, nil, &texture_view)
 	check_error("Could not create shader resource view", result)
 
 	clear_color := [?]f32{0.025, 0.025, 0.025, 1.0}
@@ -406,8 +274,8 @@ main :: proc() {
 		viewport := d3d11.VIEWPORT {
 			0,
 			0,
-			f32(depth_buffer_description.Width),
-			f32(depth_buffer_description.Height),
+			f32(renderer.render_zone_width),
+			f32(renderer.render_zone_height),
 			0,
 			1,
 		}
@@ -505,5 +373,7 @@ main :: proc() {
 
 		result = renderer.swapchain->Present(1, {})
 		check_error("Could not present swapchain", result)
+
+		free_all(context.temp_allocator)
 	}
 }

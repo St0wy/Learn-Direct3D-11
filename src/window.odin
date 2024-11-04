@@ -9,15 +9,11 @@ L :: intrinsics.constant_utf16_cstring
 
 Window :: struct {
 	instance:     win32.HINSTANCE,
-	class_name:   win32.LPCWSTR,
+	// class_name:   win32.LPCWSTR,
 	window_class: win32.WNDCLASSW,
 	atom:         win32.ATOM,
 	hwnd:         win32.HWND,
 }
-
-// on_size :: proc(hwnd: win32.HWND, flag: win32.UINT, width: u16, height: u16) {
-
-// }
 
 wndproc :: proc "system" (
 	hwnd: win32.HWND,
@@ -45,7 +41,7 @@ wndproc :: proc "system" (
 }
 
 create_window :: proc(
-	title: win32.LPCWSTR,
+	title: string,
 	width: i32,
 	height: i32,
 ) -> (
@@ -53,26 +49,45 @@ create_window :: proc(
 	bool,
 ) {
 	window: Window
-	window.class_name = L("OdinMainClass")
+	class_name := L("OdinMainClass")
 
 	window.instance = win32.HINSTANCE(win32.GetModuleHandleW(nil))
 	if (window.instance == nil) {return window, false}
 
 	window.window_class = win32.WNDCLASSW {
 		lpfnWndProc   = wndproc,
-		// lpfnWndProc   = win32.DefWindowProcW,
 		hInstance     = window.instance,
-		lpszClassName = window.class_name,
+		lpszClassName = class_name,
 		hCursor       = win32.LoadCursorA(nil, win32.IDC_ARROW),
 	}
 
 	window.atom = win32.RegisterClassW(&window.window_class)
 	if window.atom == 0 {return window, false}
 
+	wide_title: win32.LPWSTR
+	title_len := cast(i32)len(title)
+	wide_title_lenth := win32.MultiByteToWideChar(
+		win32.CP_UTF8,
+		0,
+		raw_data(title),
+		title_len,
+		nil,
+		0,
+	)
+	wide_title = make([^]win32.WCHAR, wide_title_lenth, context.temp_allocator)
+	win32.MultiByteToWideChar(
+		win32.CP_UTF8,
+		0,
+		raw_data(title),
+		title_len,
+		wide_title,
+		wide_title_lenth,
+	)
+
 	window.hwnd = win32.CreateWindowExW(
 		0,
-		window.class_name,
-		title,
+		class_name,
+		wide_title,
 		win32.WS_OVERLAPPEDWINDOW,
 		win32.CW_USEDEFAULT,
 		win32.CW_USEDEFAULT,
