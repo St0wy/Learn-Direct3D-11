@@ -6,18 +6,25 @@ Vertex :: struct {
 	position:            glm.vec3,
 	normal:              glm.vec3,
 	texture_coordinates: glm.vec2,
+	color:               glm.vec3,
 }
 
 Mesh :: struct {
 	vertices: []Vertex,
-	indices:  []int,
+	indices:  []u32,
 }
 
+// For now there is just one material type, but in the future there will be multiple
 Material :: struct {
-	base_color_texture: []
+	base_color_texture: Texture,
 }
 
-load_model_from_obj_path :: proc(obj_path: string) -> (Mesh, bool) {
-	mesh: Mesh
+Model :: struct {
+	mesh:     Mesh,
+	material: Material,
+}
+
+load_model_from_obj_path :: proc(obj_path: string) -> (Model, bool) {
+	mesh: Model
 	return mesh, false
 }

@@ -26,16 +26,18 @@ channel_count :: proc(texture_channels: TextureChannels) -> int {
 	case .Rgba:
 		return 4
 	case:
-		return 0
+		panic("Someone should handle the new texture channels")
 	}
 }
 
 Texture :: struct {
-	descriptor: TextureLoadDescriptor,
-	data:       []u8,
+	using descriptor: TextureDescriptor,
+	width:            int,
+	height:           int,
+	data:             []u8,
 }
 
-TextureLoadDescriptor :: struct {
+TextureDescriptor :: struct {
 	type:        TextureType,
 	color_space: TextureColorSpace,
 	channels:    TextureChannels,
@@ -43,12 +45,7 @@ TextureLoadDescriptor :: struct {
 	path:        string,
 }
 
-load_texture :: proc(
-	load_descriptor: TextureLoadDescriptor,
-) -> (
-	Texture,
-	bool,
-) {
+load_texture :: proc(load_descriptor: TextureDescriptor) -> (Texture, bool) {
 	texture: Texture
 
 	// Only support PNG for now
@@ -61,10 +58,11 @@ load_texture :: proc(
 	// The image buffer is intentionally not freed, because 
 	// it will be transfered to the texture. 
 	// The metadata isn't read, so I assume it's safe to leave alone
-	defer free(png_image)
+	// defer free(png_image)
+	defer png.destroy(png_image)
 
 	if (load_error != nil) {
-		fmt.fprintfln(
+		fmt.printfln(
 			"Could not load texture %v, with error %v",
 			load_descriptor.path,
 			load_error,
@@ -74,16 +72,15 @@ load_texture :: proc(
 
 	if (png_image.channels != channel_count(load_descriptor.channels) &&
 		   png_image.depth != load_descriptor.depth) {
-		fmt.fprintfln(
+		fmt.printfln(
 			"Could not load texture %v, because it doesn't have the correct channels count and bit depth",
 			load_descriptor.path,
 		)
 		return texture, false
 	}
 
-    // TODO DO THIS
-	texture.data = bytes.buffer_to_bytes(png_image.pixels)
-	texture.channels = load_descriptor.channels
-	texture.color_space = load_descriptor.color_space
-	texture.png.destroy(png_image)
+	texture.data = bytes.buffer_to_bytes(&png_image.pixels)
+	texture.descriptor = load_descriptor
+
+	return texture, true
 }

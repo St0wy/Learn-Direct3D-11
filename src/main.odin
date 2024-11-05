@@ -80,74 +80,16 @@ main :: proc() {
 	)
 	assert(could_init_const_buffer)
 
-	mesh, could_load_mesh := load_mesh_from_obj_path(
-		"data/character-fame-a.obj",
+	model := get_nice_model()
+
+	gpu_mesh, could_upload_mesh := upload_mesh_to_gpu(&renderer, model.mesh)
+	assert(could_upload_mesh)
+
+	gpu_texture, could_upload_texture := upload_texture_to_gpu(
+		&renderer,
+		model.material.base_color_texture,
 	)
-	// assert(could_load_mesh)
-
-	vertex_buffer_description := d3d11.BUFFER_DESC {
-		ByteWidth = size_of(vertex_data),
-		Usage     = .IMMUTABLE,
-		BindFlags = {.VERTEX_BUFFER},
-	}
-	vertex_buffer: ^d3d11.IBuffer
-	result =
-	renderer.device->CreateBuffer(
-		&vertex_buffer_description,
-		&d3d11.SUBRESOURCE_DATA {
-			pSysMem = &vertex_data[0],
-			SysMemPitch = size_of(vertex_data),
-		},
-		&vertex_buffer,
-	)
-	check_error("Could not create vertex buffer", result)
-
-	index_buffer_description := d3d11.BUFFER_DESC {
-		ByteWidth = size_of(index_data),
-		Usage     = .IMMUTABLE,
-		BindFlags = {.INDEX_BUFFER},
-	}
-	index_buffer: ^d3d11.IBuffer
-	result =
-	renderer.device->CreateBuffer(
-		&index_buffer_description,
-		&d3d11.SUBRESOURCE_DATA {
-			pSysMem = &index_data[0],
-			SysMemPitch = size_of(index_data),
-		},
-		&index_buffer,
-	)
-	check_error("Could not create index buffer", result)
-
-	texture_description := d3d11.TEXTURE2D_DESC {
-		Width = TEXTURE_WIDTH,
-		Height = TEXTURE_HEIGHT,
-		MipLevels = 1,
-		ArraySize = 1,
-		Format = .R8G8B8A8_UNORM_SRGB,
-		SampleDesc = {Count = 1},
-		Usage = .IMMUTABLE,
-		BindFlags = {.SHADER_RESOURCE},
-	}
-
-	texture_data := d3d11.SUBRESOURCE_DATA {
-		pSysMem     = &texture_data[0],
-		SysMemPitch = TEXTURE_WIDTH * 4,
-	}
-
-	texture: ^d3d11.ITexture2D
-	result =
-	renderer.device->CreateTexture2D(
-		&texture_description,
-		&texture_data,
-		&texture,
-	)
-	check_error("Could not create model texture", result)
-
-	texture_view: ^d3d11.IShaderResourceView
-	result =
-	renderer.device->CreateShaderResourceView(texture, nil, &texture_view)
-	check_error("Could not create shader resource view", result)
+	assert(could_upload_texture)
 
 	clear_color := [?]f32{0.025, 0.025, 0.025, 1.0}
 
@@ -192,7 +134,7 @@ main :: proc() {
 		mapped_subresource: d3d11.MAPPED_SUBRESOURCE
 
 		renderer.device_context->Map(
-			constant_buffer,
+			renderer.constant_buffer,
 			0,
 			.WRITE_DISCARD,
 			{},
@@ -222,7 +164,7 @@ main :: proc() {
 				0,
 			}
 		}
-		renderer.device_context->Unmap(constant_buffer, 0)
+		renderer.device_context->Unmap(renderer.constant_buffer, 0)
 
 		renderer.device_context->ClearRenderTargetView(
 			renderer.framebuffer_view,
@@ -236,38 +178,63 @@ main :: proc() {
 		)
 
 		renderer.device_context->IASetPrimitiveTopology(.TRIANGLELIST)
-		renderer.device_context->IASetInputLayout(input_layout)
+		renderer.device_context->IASetInputLayout(
+			renderer.main_pipeline.input_layout,
+		)
 		renderer.device_context->IASetVertexBuffers(
 			0,
 			1,
-			&vertex_buffer,
+			&gpu_mesh.vertex_buffer,
 			&vertex_buffer_stride,
 			&vertex_buffer_offset,
 		)
-		renderer.device_context->IASetIndexBuffer(index_buffer, .R32_UINT, 0)
+		renderer.device_context->IASetIndexBuffer(
+			gpu_mesh.index_buffer,
+			.R32_UINT,
+			0,
+		)
 
-		renderer.device_context->VSSetShader(vertex_shader, nil, 0)
-		renderer.device_context->VSSetConstantBuffers(0, 1, &constant_buffer)
+		renderer.device_context->VSSetShader(
+			renderer.main_pipeline.vertex_shader,
+			nil,
+			0,
+		)
+		renderer.device_context->VSSetConstantBuffers(
+			0,
+			1,
+			&renderer.constant_buffer,
+		)
 
 		renderer.device_context->RSSetViewports(1, &viewport)
-		renderer.device_context->RSSetState(rasterizer_state)
+		renderer.device_context->RSSetState(renderer.rasterizer_state)
 
-		renderer.device_context->PSSetShader(pixel_shader, nil, 0)
-		renderer.device_context->PSSetShaderResources(0, 1, &texture_view)
-		renderer.device_context->PSSetSamplers(0, 1, &sampler_state)
+		renderer.device_context->PSSetShader(
+			renderer.main_pipeline.pixel_shader,
+			nil,
+			0,
+		)
+		renderer.device_context->PSSetShaderResources(0, 1, &gpu_texture.view)
+		renderer.device_context->PSSetSamplers(0, 1, &renderer.sampler_state)
 
 		renderer.device_context->OMSetRenderTargets(
 			1,
 			&renderer.framebuffer_view,
 			renderer.depth_buffer_view,
 		)
-		renderer.device_context->OMSetDepthStencilState(depth_stencil_state, 0)
+		renderer.device_context->OMSetDepthStencilState(
+			renderer.depth_stencil_state,
+			0,
+		)
 		renderer.device_context->OMSetBlendState(nil, nil, ~u32(0))
 
 		renderer.device_context->DrawIndexed(len(index_data), 0, 0)
 
-		result = renderer.swapchain->Present(1, {})
-		check_error("Could not present swapchain", result)
+		result := renderer.swapchain->Present(1, {})
+		if (!win32.SUCCEEDED(result)) {
+			panic(
+				fmt.tprintfln("Could not present swapchain : %X", u32(result)),
+			)
+		}
 
 		free_all(context.temp_allocator)
 	}

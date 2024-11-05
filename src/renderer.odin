@@ -38,11 +38,6 @@ Pipeline :: struct {
 	is_initialized: bool,
 }
 
-GpuMesh :: struct {
-	vertex_buffer: ^d3d11.IBuffer,
-	index_buffer:  ^d3d11.IBuffer,
-}
-
 check_error :: #force_inline proc(
 	msg: string,
 	result: win32.HRESULT,

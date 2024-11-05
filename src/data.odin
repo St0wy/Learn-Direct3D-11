@@ -3,6 +3,35 @@ package main
 TEXTURE_WIDTH  :: 2
 TEXTURE_HEIGHT :: 2
 
+get_nice_texture_data :: proc() -> Texture {
+	texture: Texture
+	texture.channels = .Rgba
+	texture.color_space = .Srgb
+	texture.depth = 8
+	texture.type = .BaseColor
+	texture.width = TEXTURE_WIDTH
+	texture.height= TEXTURE_HEIGHT
+	texture.data = transmute([]u8)texture_data[:]
+
+	return texture
+}
+
+get_nice_mesh_data :: proc() -> Mesh {
+	mesh: Mesh
+	mesh.vertices = transmute([]Vertex)vertex_data[:]
+	mesh.indices = transmute([]u32)index_data[:]
+
+	return mesh
+}
+
+get_nice_model :: proc() -> Model {
+	model: Model
+	model.material.base_color_texture = get_nice_texture_data()
+	model.mesh = get_nice_mesh_data()
+
+	return model
+}
+
 texture_data := [TEXTURE_WIDTH*TEXTURE_HEIGHT]u32{
 	0xffffffff, 0xff7f7f7f,
 	0xff7f7f7f, 0xffffffff,
