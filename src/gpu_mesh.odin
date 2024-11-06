@@ -5,8 +5,10 @@ import win32 "core:sys/windows"
 import "vendor:directx/d3d11"
 
 GpuMesh :: struct {
-	vertex_buffer: ^d3d11.IBuffer,
-	index_buffer:  ^d3d11.IBuffer,
+	vertex_buffer:        ^d3d11.IBuffer,
+	index_buffer:         ^d3d11.IBuffer,
+	vertex_buffer_stride: u32,
+	index_buffer_len:     u32,
 }
 
 upload_mesh_to_gpu :: proc(
@@ -59,6 +61,9 @@ upload_mesh_to_gpu :: proc(
 		fmt.eprintln("Could not create index buffer (%X)", u32(result))
 		return gpu_mesh, false
 	}
+
+	gpu_mesh.vertex_buffer_stride = size_of(Vertex)
+	gpu_mesh.index_buffer_len = u32(len(mesh.indices))
 
 	return gpu_mesh, true
 }

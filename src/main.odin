@@ -74,11 +74,9 @@ main :: proc() {
 		light_vector: glm.vec3,
 	}
 
-	could_init_const_buffer := init_constant_buffer(
-		&renderer,
-		size_of(Constants),
-	)
+	could_init_const_buffer := init_constant_buffer(&renderer, Constants)
 	assert(could_init_const_buffer)
+	defer destroy_constant_buffer(&renderer)
 
 	model := get_nice_model()
 
@@ -92,34 +90,18 @@ main :: proc() {
 	)
 	assert(could_upload_texture)
 
-	clear_color := [?]f32{0.025, 0.025, 0.025, 1.0}
-
-	vertex_buffer_stride := u32(11 * 4)
-	vertex_buffer_offset := u32(0)
-
 	model_rotation := glm.vec3{0.0, 0.0, 0.0}
 	model_translation := glm.vec3{0.0, 0.0, 4.0}
-
 
 	msg: win32.MSG
 	for (msg.message != win32.WM_QUIT) {
 		if (win32.PeekMessageW(&msg, nil, 0, 0, win32.PM_REMOVE)) {
 			win32.TranslateMessage(&msg)
-			// Handle message here maybe
 			win32.DispatchMessageW(&msg)
 			continue
 		}
 
-		viewport := d3d11.VIEWPORT {
-			0,
-			0,
-			f32(renderer.render_zone_width),
-			f32(renderer.render_zone_height),
-			0,
-			1,
-		}
-
-		w := viewport.Width / viewport.Height
+		w := f32(renderer.viewport.Width) / f32(renderer.viewport.Height)
 		h := f32(1)
 		n := f32(1)
 		f := f32(9)
@@ -133,110 +115,40 @@ main :: proc() {
 		model_rotation.y += 0.009
 		model_rotation.z += 0.001
 
-		mapped_subresource: d3d11.MAPPED_SUBRESOURCE
+		constants: Constants
+		constants.transform = translate * rotate_z * rotate_y * rotate_x
+		constants.light_vector = {+1, -1, +1}
 
-		renderer.device_context->Map(
-			renderer.constant_buffer,
+		constants.projection = {
+			2 * n / w,
 			0,
-			.WRITE_DISCARD,
-			{},
-			&mapped_subresource,
-		)
-		{
-			constants := (^Constants)(mapped_subresource.pData)
-			constants.transform = translate * rotate_z * rotate_y * rotate_x
-			constants.light_vector = {+1, -1, +1}
-
-			constants.projection = {
-				2 * n / w,
-				0,
-				0,
-				0,
-				0,
-				2 * n / h,
-				0,
-				0,
-				0,
-				0,
-				f / (f - n),
-				n * f / (n - f),
-				0,
-				0,
-				1,
-				0,
-			}
+			0,
+			0,
+			0,
+			2 * n / h,
+			0,
+			0,
+			0,
+			0,
+			f / (f - n),
+			n * f / (n - f),
+			0,
+			0,
+			1,
+			0,
 		}
-		renderer.device_context->Unmap(renderer.constant_buffer, 0)
 
-		renderer.device_context->ClearRenderTargetView(
-			renderer.framebuffer_view,
-			&clear_color,
-		)
-		renderer.device_context->ClearDepthStencilView(
-			renderer.depth_buffer_view,
-			{.DEPTH},
-			1,
-			0,
-		)
+		could_upload_const_buff := upload_constant_buffer(&renderer, constants)
+		assert(could_upload_const_buff)
 
-		renderer.device_context->IASetPrimitiveTopology(.TRIANGLELIST)
-		renderer.device_context->IASetInputLayout(
-			renderer.main_pipeline.input_layout,
-		)
-		renderer.device_context->IASetVertexBuffers(
-			0,
-			1,
-			&gpu_mesh.vertex_buffer,
-			&vertex_buffer_stride,
-			&vertex_buffer_offset,
-		)
-		renderer.device_context->IASetIndexBuffer(
-			gpu_mesh.index_buffer,
-			.R32_UINT,
-			0,
-		)
+		clear(&renderer, {0.025, 0.025, 0.025, 1.0})
 
-		renderer.device_context->VSSetShader(
-			renderer.main_pipeline.vertex_shader,
-			nil,
-			0,
-		)
-		renderer.device_context->VSSetConstantBuffers(
-			0,
-			1,
-			&renderer.constant_buffer,
-		)
+		setup_renderer_state(&renderer)
+		setup_main_pipeline(&renderer, gpu_texture)
 
-		renderer.device_context->RSSetViewports(1, &viewport)
-		renderer.device_context->RSSetState(renderer.rasterizer_state)
+		draw_mesh(&renderer, gpu_mesh)
 
-		renderer.device_context->PSSetShader(
-			renderer.main_pipeline.pixel_shader,
-			nil,
-			0,
-		)
-		renderer.device_context->PSSetShaderResources(0, 1, &gpu_texture.view)
-		renderer.device_context->PSSetSamplers(0, 1, &renderer.sampler_state)
-
-		renderer.device_context->OMSetRenderTargets(
-			1,
-			&renderer.framebuffer_view,
-			renderer.depth_buffer_view,
-		)
-		renderer.device_context->OMSetDepthStencilState(
-			renderer.depth_stencil_state,
-			0,
-		)
-		renderer.device_context->OMSetBlendState(nil, nil, ~u32(0))
-
-		renderer.device_context->DrawIndexed(len(index_data), 0, 0)
-
-		result := renderer.swapchain->Present(1, {})
-		if (!win32.SUCCEEDED(result)) {
-			panic(
-				fmt.tprintfln("Could not present swapchain : %X", u32(result)),
-			)
-		}
+		present(&renderer)
 
 		free_all(context.temp_allocator)
 	}

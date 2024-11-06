@@ -8,8 +8,6 @@ import "vendor:directx/dxgi"
 
 D3DRenderer :: struct {
 	window_handle:       win32.HWND,
-	render_zone_width:   u32,
-	render_zone_height:  u32,
 	base_device:         ^d3d11.IDevice,
 	base_device_context: ^d3d11.IDeviceContext,
 	device:              ^d3d11.IDevice,
@@ -25,6 +23,7 @@ D3DRenderer :: struct {
 	rasterizer_state:    ^d3d11.IRasterizerState,
 	sampler_state:       ^d3d11.ISamplerState,
 	depth_stencil_state: ^d3d11.IDepthStencilState,
+	viewport:            d3d11.VIEWPORT,
 	main_pipeline:       Pipeline,
 	constant_buffer:     ^d3d11.IBuffer,
 }
@@ -175,8 +174,14 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 	depth_buffer_description.Format = .D24_UNORM_S8_UINT
 	depth_buffer_description.BindFlags = {.DEPTH_STENCIL}
 
-	renderer.render_zone_width = depth_buffer_description.Width
-	renderer.render_zone_height = depth_buffer_description.Height
+	renderer.viewport = {
+		0,
+		0,
+		f32(depth_buffer_description.Width),
+		f32(depth_buffer_description.Height),
+		0,
+		1,
+	}
 
 	result =
 	renderer.device->CreateTexture2D(
@@ -262,8 +267,6 @@ destroy_renderer :: proc(renderer: ^D3DRenderer) {
 	renderer.rasterizer_state->Release()
 	renderer.sampler_state->Release()
 	renderer.depth_stencil_state->Release()
-
-	renderer.constant_buffer->Release()
 
 	renderer.device->Release()
 	renderer.device_context->Release()
@@ -375,12 +378,9 @@ destroy_pipeline :: proc(pipeline: ^Pipeline) {
 	pipeline.pixel_shader->Release()
 }
 
-init_constant_buffer :: proc(
-	renderer: ^D3DRenderer,
-	constants_size: u32,
-) -> bool {
+init_constant_buffer :: proc(renderer: ^D3DRenderer, $C: typeid) -> bool {
 	constant_buffer_description := d3d11.BUFFER_DESC {
-		ByteWidth      = constants_size,
+		ByteWidth      = size_of(C),
 		Usage          = .DYNAMIC,
 		BindFlags      = {.CONSTANT_BUFFER},
 		CPUAccessFlags = {.WRITE},
@@ -397,4 +397,123 @@ init_constant_buffer :: proc(
 	}
 
 	return true
+}
+
+destroy_constant_buffer :: proc(renderer: ^D3DRenderer) {
+	renderer.constant_buffer->Release()
+}
+
+upload_constant_buffer :: proc(renderer: ^D3DRenderer, constants: $C) -> bool {
+	mapped_subresource: d3d11.MAPPED_SUBRESOURCE
+
+	result := renderer.device_context->Map(
+		renderer.constant_buffer,
+		0,
+		.WRITE_DISCARD,
+		{},
+		&mapped_subresource,
+	)
+	if (!win32.SUCCEEDED(result)) {return false}
+
+	mapped_constants := (^C)(mapped_subresource.pData)
+	mapped_constants^ = constants
+
+	renderer.device_context->Unmap(renderer.constant_buffer, 0)
+
+	return true
+}
+
+clear :: proc(renderer: ^D3DRenderer, clear_color: [4]f32) {
+	clear_color := clear_color
+	renderer.device_context->ClearRenderTargetView(
+		renderer.framebuffer_view,
+		&clear_color,
+	)
+	renderer.device_context->ClearDepthStencilView(
+		renderer.depth_buffer_view,
+		{.DEPTH},
+		1,
+		0,
+	)
+}
+
+// TODO : Maybe find a better word than "setup"
+// TODO : Remove the texture from here and do smth like a material system
+setup_main_pipeline :: proc(renderer: ^D3DRenderer, gpu_texture: GpuTexture) {
+	gpu_texture := gpu_texture
+
+	renderer.device_context->IASetInputLayout(
+		renderer.main_pipeline.input_layout,
+	)
+
+	renderer.device_context->VSSetShader(
+		renderer.main_pipeline.vertex_shader,
+		nil,
+		0,
+	)
+
+	renderer.device_context->PSSetShader(
+		renderer.main_pipeline.pixel_shader,
+		nil,
+		0,
+	)
+
+	renderer.device_context->VSSetConstantBuffers(
+		0,
+		1,
+		&renderer.constant_buffer,
+	)
+
+	// TODO : Move this somewhere else ?
+	renderer.device_context->PSSetShaderResources(0, 1, &gpu_texture.view)
+	renderer.device_context->PSSetSamplers(0, 1, &renderer.sampler_state)
+}
+
+setup_renderer_state :: proc(renderer: ^D3DRenderer) {
+	renderer.device_context->RSSetViewports(1, &renderer.viewport)
+	renderer.device_context->RSSetState(renderer.rasterizer_state)
+
+	renderer.device_context->OMSetRenderTargets(
+		1,
+		&renderer.framebuffer_view,
+		renderer.depth_buffer_view,
+	)
+
+	renderer.device_context->OMSetDepthStencilState(
+		renderer.depth_stencil_state,
+		0,
+	)
+
+	renderer.device_context->OMSetBlendState(nil, nil, ~u32(0))
+}
+
+draw_mesh :: proc(renderer: ^D3DRenderer, gpu_mesh: GpuMesh) {
+	gpu_mesh := gpu_mesh
+
+	vertex_buffer_offset := u32(0)
+
+	// For now, only triangle list are supported
+	renderer.device_context->IASetPrimitiveTopology(.TRIANGLELIST)
+
+	renderer.device_context->IASetVertexBuffers(
+		0,
+		1,
+		&gpu_mesh.vertex_buffer,
+		&gpu_mesh.vertex_buffer_stride,
+		&vertex_buffer_offset,
+	)
+	renderer.device_context->IASetIndexBuffer(
+		gpu_mesh.index_buffer,
+		.R32_UINT,
+		0,
+	)
+
+	renderer.device_context->DrawIndexed(gpu_mesh.index_buffer_len, 0, 0)
+}
+
+present :: proc(renderer: ^D3DRenderer) {
+	result := renderer.swapchain->Present(1, {})
+	if (!win32.SUCCEEDED(result)) {
+		panic(fmt.tprintfln("Could not present swapchain : %X", u32(result)))
+	}
 }
