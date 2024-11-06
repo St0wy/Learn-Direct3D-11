@@ -4,8 +4,10 @@
 
 - Window resizing
 - Camera controls
+- Obj Model Loading
 - Point lights
 - Pipeline / Material system
+- GLTF Model Loading
 - Shadow mapping
 - Scene graph
 - Some post processing effects (SSAO ? Bloom ?)
