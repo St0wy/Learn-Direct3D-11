@@ -18,8 +18,10 @@ get_nice_texture_data :: proc() -> Texture {
 
 get_nice_mesh_data :: proc() -> Mesh {
 	mesh: Mesh
-	mesh.vertices = transmute([]Vertex)vertex_data[:]
-	mesh.indices = transmute([]u32)index_data[:]
+	reinterpreted_vertex_data := transmute([]Vertex)vertex_data[:]
+	good_len := len(vertex_data) / 11
+	mesh.vertices = reinterpreted_vertex_data[0:good_len]
+	mesh.indices = index_data[:]
 
 	return mesh
 }

@@ -38,22 +38,6 @@ Pipeline :: struct {
 	is_initialized: bool,
 }
 
-check_error :: #force_inline proc(
-	msg: string,
-	result: win32.HRESULT,
-	loc := #caller_location,
-) {
-	when ODIN_DEBUG {
-		if (!win32.SUCCEEDED(result)) {
-			fmt.printfln("Last Windows error: %x", win32.GetLastError())
-			panic(
-				fmt.tprintfln("%s with error : %X", msg, u32(result)),
-				loc = loc,
-			)
-		}
-	}
-}
-
 create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 	renderer: D3DRenderer
 	renderer.window_handle = window_handle
@@ -266,9 +250,29 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 	return renderer, true
 }
 
-// TODO : Maybe don't take a ptr ? 
 destroy_renderer :: proc(renderer: ^D3DRenderer) {
+	renderer.device_context->Flush()
+	renderer.device_context->ClearState()
 
+	renderer.framebuffer->Release()
+	renderer.framebuffer_view->Release()
+	renderer.depth_buffer->Release()
+	renderer.depth_buffer_view->Release()
+
+	renderer.rasterizer_state->Release()
+	renderer.sampler_state->Release()
+	renderer.depth_stencil_state->Release()
+
+	renderer.constant_buffer->Release()
+
+	renderer.device->Release()
+	renderer.device_context->Release()
+	renderer.base_device->Release()
+	renderer.base_device_context->Release()
+	renderer.dxgi_device->Release()
+	renderer.dxgi_adapter->Release()
+	renderer.dxgi_factory->Release()
+	renderer.swapchain->Release()
 }
 
 PipelineDescriptor :: struct {
@@ -298,7 +302,6 @@ init_main_pipeline :: proc(
 		&renderer.main_pipeline.vs_blob,
 		nil,
 	)
-	if (renderer.main_pipeline.vs_blob == nil) {return false}
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not compile vertex shader (%X)", u32(result))
 		return false
@@ -332,10 +335,10 @@ init_main_pipeline :: proc(
 	result = d3d.Compile(
 		raw_data(pipeline_descriptor.pixel_shader_source),
 		len(pipeline_descriptor.pixel_shader_source),
-		pipeline_descriptor.vertex_shader_filename,
+		pipeline_descriptor.pixel_shader_filename,
 		nil,
 		nil,
-		pipeline_descriptor.vertex_shader_entry,
+		pipeline_descriptor.pixel_shader_entry,
 		"ps_5_0",
 		0,
 		0,
@@ -360,6 +363,16 @@ init_main_pipeline :: proc(
 	}
 
 	return true
+}
+
+destroy_pipeline :: proc(pipeline: ^Pipeline) {
+	pipeline.input_layout->Release()
+
+	pipeline.vs_blob->Release()
+	pipeline.vertex_shader->Release()
+
+	pipeline.ps_blob->Release()
+	pipeline.pixel_shader->Release()
 }
 
 init_constant_buffer :: proc(

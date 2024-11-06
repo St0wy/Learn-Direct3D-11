@@ -5,8 +5,6 @@ import "core:fmt"
 import glm "core:math/linalg/glsl"
 import win32 "core:sys/windows"
 import "vendor:directx/d3d11"
-import d3d "vendor:directx/d3d_compiler"
-import "vendor:directx/dxgi"
 
 main :: proc() {
 	window, window_succes := create_window(
@@ -54,6 +52,7 @@ main :: proc() {
 		},
 	}
 
+	// I don't know yet if pipelines should be handled here or inside the renderer
 	could_create_pipeline := init_main_pipeline(
 		&renderer,
 		{
@@ -67,6 +66,7 @@ main :: proc() {
 		},
 	)
 	assert(could_create_pipeline)
+	defer destroy_pipeline(&renderer.main_pipeline)
 
 	Constants :: struct #align (16) {
 		transform:    glm.mat4,
@@ -84,6 +84,7 @@ main :: proc() {
 
 	gpu_mesh, could_upload_mesh := upload_mesh_to_gpu(&renderer, model.mesh)
 	assert(could_upload_mesh)
+	defer destroy_gpu_mesh(&gpu_mesh)
 
 	gpu_texture, could_upload_texture := upload_texture_to_gpu(
 		&renderer,
@@ -98,6 +99,7 @@ main :: proc() {
 
 	model_rotation := glm.vec3{0.0, 0.0, 0.0}
 	model_translation := glm.vec3{0.0, 0.0, 4.0}
+
 
 	msg: win32.MSG
 	for (msg.message != win32.WM_QUIT) {

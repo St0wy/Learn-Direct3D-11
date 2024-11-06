@@ -33,6 +33,7 @@ upload_mesh_to_gpu :: proc(
 		},
 		&gpu_mesh.vertex_buffer,
 	)
+
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not create vertex buffer (%X)", u32(result))
 		return gpu_mesh, false
@@ -60,4 +61,9 @@ upload_mesh_to_gpu :: proc(
 	}
 
 	return gpu_mesh, true
+}
+
+destroy_gpu_mesh :: proc(gpu_mesh: ^GpuMesh) {
+	gpu_mesh.index_buffer->Release()
+	gpu_mesh.vertex_buffer->Release()
 }
