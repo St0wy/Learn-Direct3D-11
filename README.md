@@ -5,6 +5,7 @@
 - Window resizing
 - Camera controls
 - ImGui
+- Option to change resolution
 - Obj Model Loading
 - Point lights
 - Pipeline / Material system
