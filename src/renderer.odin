@@ -116,13 +116,13 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 	swapchain_description := dxgi.SWAP_CHAIN_DESC1 {
 		Width = 0,
 		Height = 0,
-		Format = .B8G8R8A8_UNORM_SRGB,
+		Format = .B8G8R8A8_UNORM,
 		Stereo = false,
 		SampleDesc = {Count = 1, Quality = 0},
 		BufferUsage = {.RENDER_TARGET_OUTPUT},
 		BufferCount = 2,
 		Scaling = .STRETCH,
-		SwapEffect = .DISCARD,
+		SwapEffect = .FLIP_DISCARD,
 		AlphaMode = .UNSPECIFIED,
 		Flags = {},
 	}

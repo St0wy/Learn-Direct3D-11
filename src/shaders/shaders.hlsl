@@ -29,6 +29,16 @@ vs_out vs_main(vs_in input) {
 	return output;
 }
 
+float3 linear_to_srgb(float3 rgb)
+{
+	rgb = clamp(rgb, 0.0, 1.0);
+
+	float3 lt_threshold = step(0.0031308, rgb);
+	return lerp(rgb * 12.92, pow(rgb, 1.0 / 2.4) * 1.055 - 0.055, lt_threshold);
+}
+
 float4 ps_main(vs_out input) : SV_TARGET {
-	return mytexture.Sample(mysampler, input.texcoord) * input.color;
+	float3 texture_color = mytexture.Sample(mysampler, input.texcoord).rgb;
+	float3 output_color = texture_color * input.color.rgb;
+	return float4(linear_to_srgb(output_color), 1);
 }
