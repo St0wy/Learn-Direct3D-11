@@ -26,6 +26,7 @@ D3DRenderer :: struct {
 	viewport:            d3d11.VIEWPORT,
 	main_pipeline:       Pipeline,
 	constant_buffer:     ^d3d11.IBuffer,
+	debug:               ^d3d11.IDebug,
 }
 
 Pipeline :: struct {
@@ -73,7 +74,7 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 		(^rawptr)(&renderer.device),
 	)
 	if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln("Could not create base device (%X)", u32(result))
+		fmt.eprintln("Could not create device (%X)", u32(result))
 		return renderer, false
 	}
 
@@ -83,8 +84,22 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 		(^rawptr)(&renderer.device_context),
 	)
 	if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln("Could not create base device context (%X)", u32(result))
+		fmt.eprintln("Could not create device context (%X)", u32(result))
 		return renderer, false
+	}
+
+
+	when ODIN_DEBUG {
+		result =
+		renderer.device->QueryInterface(
+			d3d11.IDebug_UUID,
+			(^rawptr)(&renderer.debug),
+		)
+
+		if (win32.SUCCEEDED(result)) {
+			renderer.debug->ReportLiveDeviceObjects({.DETAIL})
+			// renderer.debug->Release()
+		}
 	}
 
 	result =
@@ -276,6 +291,8 @@ destroy_renderer :: proc(renderer: ^D3DRenderer) {
 	renderer.dxgi_adapter->Release()
 	renderer.dxgi_factory->Release()
 	renderer.swapchain->Release()
+
+	renderer.debug->ReportLiveDeviceObjects({.DETAIL})
 }
 
 PipelineDescriptor :: struct {

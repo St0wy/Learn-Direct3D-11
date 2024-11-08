@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "command": "",
+    "args": [],
+    "tasks": [
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": ".\\build.ps1",
+            "group": "build"
+        },
+        {
+            "label": "Build & Run",
+            "type": "shell",
+            "command": ".\\run.ps1",
+            "group": "build"
+        }
+    ]
+}

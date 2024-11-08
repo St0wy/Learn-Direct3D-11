@@ -8,11 +8,13 @@ import win32 "core:sys/windows"
 L :: intrinsics.constant_utf16_cstring
 
 Window :: struct {
-	instance:     win32.HINSTANCE,
+	instance:        win32.HINSTANCE,
 	// class_name:   win32.LPCWSTR,
-	window_class: win32.WNDCLASSW,
-	atom:         win32.ATOM,
-	hwnd:         win32.HWND,
+	window_class:    win32.WNDCLASSW,
+	atom:            win32.ATOM,
+	hwnd:            win32.HWND,
+	is_minimized:    bool,
+	is_in_size_move: bool,
 }
 
 wndproc :: proc "system" (
@@ -33,6 +35,9 @@ wndproc :: proc "system" (
 	// case win32.WM_SIZE:
 	// 	width := win32.LOWORD(lparam)
 	// 	height := win32.HIWORD(lparam)
+	// 	if (wparam == win32.SIZE_MINIMIZED){
+	// 		if 
+	// 	}
 	case:
 		return win32.DefWindowProcW(hwnd, msg, wparam, lparam)
 	}
@@ -49,8 +54,7 @@ create_window :: proc(
 	bool,
 ) {
 	window: Window
-	class_name := L("OdinMainClass")
-
+	class_name := win32.utf8_to_wstring("OdinMainClass")
 	window.instance = win32.HINSTANCE(win32.GetModuleHandleW(nil))
 	if (window.instance == nil) {return window, false}
 
@@ -58,31 +62,13 @@ create_window :: proc(
 		lpfnWndProc   = wndproc,
 		hInstance     = window.instance,
 		lpszClassName = class_name,
-		hCursor       = win32.LoadCursorA(nil, win32.IDC_ARROW),
+		hCursor       = win32.LoadCursorW(nil, win32.wstring(win32._IDC_ARROW)),
 	}
 
 	window.atom = win32.RegisterClassW(&window.window_class)
 	if window.atom == 0 {return window, false}
 
-	wide_title: win32.LPWSTR
-	title_len := cast(i32)len(title)
-	wide_title_lenth := win32.MultiByteToWideChar(
-		win32.CP_UTF8,
-		0,
-		raw_data(title),
-		title_len,
-		nil,
-		0,
-	)
-	wide_title = make([^]win32.WCHAR, wide_title_lenth, context.temp_allocator)
-	win32.MultiByteToWideChar(
-		win32.CP_UTF8,
-		0,
-		raw_data(title),
-		title_len,
-		wide_title,
-		wide_title_lenth,
-	)
+	wide_title := win32.utf8_to_wstring(title)
 
 	window.hwnd = win32.CreateWindowExW(
 		0,
@@ -100,6 +86,8 @@ create_window :: proc(
 	)
 	if window.hwnd == nil {return window, false}
 	win32.ShowWindow(window.hwnd, win32.SW_SHOWDEFAULT)
+
+	window.is_minimized = false
 
 	return window, true
 }
