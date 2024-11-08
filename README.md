@@ -9,6 +9,8 @@
 - Obj Model Loading
 - Point lights
 - Pipeline / Material system
+- PBR
+- HDR / [Tonemapping](https://64.github.io/tonemapping/)
 - GLTF Model Loading
 - Shadow mapping
 - Scene graph
