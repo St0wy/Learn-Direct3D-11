@@ -13,7 +13,7 @@
 - PBR
 - HDR / [Tonemapping](https://64.github.io/tonemapping/)
 - GLTF Model Loading
-- Shadow mapping
+- Perspective Shadow mapping
 - Scene graph
 - Some post processing effects (SSAO ? Bloom ?)
 - Not sure yet if I want to make the renderer deffered yet, but maybe (or forward +?)
