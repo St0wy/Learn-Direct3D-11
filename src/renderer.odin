@@ -293,6 +293,7 @@ destroy_renderer :: proc(renderer: ^D3DRenderer) {
 	renderer.swapchain->Release()
 
 	renderer.debug->ReportLiveDeviceObjects({.DETAIL})
+	renderer.debug->Release()
 }
 
 PipelineDescriptor :: struct {

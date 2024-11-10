@@ -122,12 +122,12 @@ main :: proc() {
 	model_rotation := glm.vec3{0.0, 0.0, 0.0}
 	model_translation := glm.vec3{0.0, 0.0, 4.0}
 
-	msg: win32.MSG
-	for (msg.message != win32.WM_QUIT) {
-		if (win32.PeekMessageW(&msg, nil, 0, 0, win32.PM_REMOVE)) {
-			win32.TranslateMessage(&msg)
-			win32.DispatchMessageW(&msg)
-			continue
+	should_quit := false
+	for (!should_quit) {
+		check_window_events(&window)
+
+		if (window.event.type == .WindowClosed) {
+			should_quit = true
 		}
 
 		w := f32(renderer.viewport.Width) / f32(renderer.viewport.Height)
@@ -170,7 +170,7 @@ main :: proc() {
 		could_upload_const_buff := upload_constant_buffer(&renderer, constants)
 		assert(could_upload_const_buff)
 
-		clear_color := linear_to_srgb({0.025, 0.025, 0.025})
+		clear_color := linear_to_srgb(glm.vec3({0.025, 0.025, 0.025}))
 		clear(&renderer, {clear_color.r, clear_color.g, clear_color.b, 1.0})
 
 		setup_renderer_state(&renderer)
