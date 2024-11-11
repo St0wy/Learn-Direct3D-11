@@ -7,16 +7,14 @@ import win32 "core:sys/windows"
 L :: intrinsics.constant_utf16_cstring
 
 Window :: struct {
-	instance:        win32.HINSTANCE,
-	// class_name:   win32.LPCWSTR,
-	window_class:    win32.WNDCLASSW,
-	atom:            win32.ATOM,
-	hwnd:            win32.HWND,
-	position:        [2]i32,
-	size:            [2]i32,
-	event:           WindowEvent,
-	is_minimized:    bool,
-	is_in_size_move: bool,
+	instance:      win32.HINSTANCE,
+	window_class:  win32.WNDCLASSW,
+	atom:          win32.ATOM,
+	hwnd:          win32.HWND,
+	height_offset: i32,
+	position:      [2]i32,
+	size:          [2]i32,
+	event:         WindowEvent,
 }
 
 WindowEvent :: struct {
@@ -35,7 +33,7 @@ WindowEventType :: enum {
 	WindowEnteredFocus,
 	WindowLeftFocus,
 	WindowRefresh,
-	KeyPressed,
+	KeyPressed, // This event is triggered on key down, repeat, and up
 	MouseMoved,
 }
 
@@ -64,7 +62,6 @@ wnd_proc :: proc "system" (
 	wparam: win32.WPARAM,
 	lparam: win32.LPARAM,
 ) -> win32.LRESULT {
-	// context = runtime.default_context()
 	switch msg {
 	case win32.WM_MOVE:
 		global_windows_events.hwnd = hwnd
@@ -83,16 +80,10 @@ wnd_proc :: proc "system" (
 	return 0
 }
 
-create_window :: proc(
-	title: string,
-	width: i32,
-	height: i32,
-) -> (
-	Window,
-	bool,
-) {
+create_window :: proc(title: string, size: [2]i32) -> (Window, bool) {
 	window: Window
 
+	// TODO : Handle DPI properly
 	win32.SetProcessDPIAware()
 
 	class_name := win32.utf8_to_wstring(title)
@@ -114,6 +105,30 @@ create_window :: proc(
 
 	wide_title := win32.utf8_to_wstring(title)
 
+	dummy_window := win32.CreateWindowExW(
+		0,
+		class_name,
+		wide_title,
+		win32.WS_OVERLAPPEDWINDOW,
+		win32.CW_USEDEFAULT,
+		win32.CW_USEDEFAULT,
+		size.x,
+		size.y,
+		nil,
+		nil,
+		window.instance,
+		nil,
+	)
+	defer win32.DestroyWindow(dummy_window)
+
+	window_rect, client_rect: win32.RECT
+	win32.GetWindowRect(dummy_window, &window_rect)
+	win32.GetClientRect(dummy_window, &client_rect)
+
+	window.height_offset =
+		(window_rect.bottom - window_rect.top) -
+		(client_rect.bottom - client_rect.top)
+
 	window.hwnd = win32.CreateWindowExW(
 		0,
 		class_name,
@@ -121,22 +136,30 @@ create_window :: proc(
 		win32.WS_OVERLAPPEDWINDOW,
 		win32.CW_USEDEFAULT,
 		win32.CW_USEDEFAULT,
-		width,
-		height,
+		size.x,
+		size.y + window.height_offset,
 		nil,
 		nil,
 		window.instance,
 		nil,
 	)
 	if window.hwnd == nil {return window, false}
-	win32.ShowWindow(window.hwnd, win32.SW_SHOWNORMAL)
 
-	window.is_minimized = false
+	global_windows_events.hwnd = nil
+	global_windows_events.position = {-1, -1}
+	global_windows_events.size = {-1, -1}
+
+	window.size = size
 
 	return window, true
 }
 
-check_window_events :: proc(window: ^Window) -> ^WindowEvent {
+show_window :: proc(window: ^Window) {
+	win32.ShowWindow(window.hwnd, win32.SW_SHOWNORMAL)
+}
+
+// This code was done by studying how RGFW does it
+check_window_event :: proc(window: ^Window) -> ^WindowEvent {
 	assert(window != nil)
 
 	if (global_windows_events.hwnd == window.hwnd) {
@@ -178,6 +201,13 @@ check_window_events :: proc(window: ^Window) -> ^WindowEvent {
 		case win32.WM_PAINT:
 			window.event.type = .WindowRefresh
 		case win32.WM_KEYUP:
+			window.event.keycode = u8(msg.wParam)
+			global_keyboard_state[window.event.keycode].previous =
+				is_key_pressed(window, window.event.keycode)
+
+			window.event.type = .KeyPressed
+			global_keyboard_state[window.event.keycode].current = true
+		case win32.WM_KEYDOWN:
 			window.event.keycode = u8(msg.wParam)
 			global_keyboard_state[window.event.keycode].previous =
 				is_key_pressed(window, window.event.keycode)
@@ -237,6 +267,7 @@ destroy_window :: proc(window: Window) {
 	win32.DestroyWindow(window.hwnd)
 }
 
+// Will repeat if key is held
 is_key_pressed :: proc(window: ^Window, key: u8) -> bool {
 	return(
 		global_keyboard_state[key].current &&
@@ -257,4 +288,15 @@ is_key_held :: proc(window: ^Window, key: u8) -> bool {
 
 is_key_released :: proc(window: ^Window, key: u8) -> bool {
 	return !is_key_pressed(window, key) && was_key_pressed(window, key)
+}
+
+is_key_newly_pressed :: proc(window: ^Window, key: u8) -> bool {
+	return is_key_pressed(window, key) && !was_key_pressed(window, key)
+}
+
+is_window_minimized :: proc(window: ^Window) -> bool {
+	placement: win32.WINDOWPLACEMENT
+	win32.GetWindowPlacement(window.hwnd, &placement)
+
+	return placement.showCmd == u32(win32.SW_SHOWMINIMIZED)
 }

@@ -96,9 +96,8 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 			(^rawptr)(&renderer.debug),
 		)
 
-		if (win32.SUCCEEDED(result)) {
-			renderer.debug->ReportLiveDeviceObjects({.DETAIL})
-			// renderer.debug->Release()
+		if (!win32.SUCCEEDED(result)) {
+			renderer.debug = nil
 		}
 	}
 
@@ -156,69 +155,8 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 		return renderer, false
 	}
 
-	result =
-	renderer.swapchain->GetBuffer(
-		0,
-		d3d11.ITexture2D_UUID,
-		(^rawptr)(&renderer.framebuffer),
-	)
-	if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln(
-			"Could not get framebuffer from swapchain (%X)",
-			u32(result),
-		)
-		return renderer, false
-	}
-
-	result =
-	renderer.device->CreateRenderTargetView(
-		renderer.framebuffer,
-		nil,
-		&renderer.framebuffer_view,
-	)
-	if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln(
-			"Could not create render target (framebuffer) view (%X)",
-			u32(result),
-		)
-		return renderer, false
-	}
-
-	depth_buffer_description: d3d11.TEXTURE2D_DESC
-	renderer.framebuffer->GetDesc(&depth_buffer_description)
-	depth_buffer_description.Format = .D24_UNORM_S8_UINT
-	depth_buffer_description.BindFlags = {.DEPTH_STENCIL}
-
-	renderer.viewport = {
-		0,
-		0,
-		f32(depth_buffer_description.Width),
-		f32(depth_buffer_description.Height),
-		0,
-		1,
-	}
-
-	result =
-	renderer.device->CreateTexture2D(
-		&depth_buffer_description,
-		nil,
-		&renderer.depth_buffer,
-	)
-	if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln("Could not create depth buffer (%X)", u32(result))
-		return renderer, false
-	}
-
-	result =
-	renderer.device->CreateDepthStencilView(
-		renderer.depth_buffer,
-		nil,
-		&renderer.depth_buffer_view,
-	)
-	if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln("Could not create depth buffer view (%X)", u32(result))
-		return renderer, false
-	}
+	could_setup_swapchain := setup_swapchain(&renderer)
+	if (!could_setup_swapchain) {return renderer, false}
 
 	rasterizer_description := d3d11.RASTERIZER_DESC {
 		FillMode = .SOLID,
@@ -292,8 +230,10 @@ destroy_renderer :: proc(renderer: ^D3DRenderer) {
 	renderer.dxgi_factory->Release()
 	renderer.swapchain->Release()
 
-	renderer.debug->ReportLiveDeviceObjects({.DETAIL})
-	renderer.debug->Release()
+	when ODIN_DEBUG {
+		renderer.debug->ReportLiveDeviceObjects({.DETAIL})
+		renderer.debug->Release()
+	}
 }
 
 PipelineDescriptor :: struct {
@@ -534,4 +474,93 @@ present :: proc(renderer: ^D3DRenderer) {
 	if (!win32.SUCCEEDED(result)) {
 		panic(fmt.tprintfln("Could not present swapchain : %X", u32(result)))
 	}
+}
+
+resize_renderer :: proc(renderer: ^D3DRenderer, size: [2]i32) -> bool {
+	renderer.device_context->OMSetRenderTargets(0, nil, nil)
+
+	renderer.framebuffer_view->Release()
+	renderer.depth_buffer_view->Release()
+
+	renderer.device_context->Flush()
+	result := renderer.swapchain->ResizeBuffers(
+		2,
+		u32(size.x),
+		u32(size.y),
+		.B8G8R8A8_UNORM,
+		{},
+	)
+	if (!win32.SUCCEEDED(result)) {return false}
+
+	could_setup_swapchain := setup_swapchain(renderer)
+	if (!could_setup_swapchain) {return false}
+
+	return true
+}
+
+setup_swapchain :: proc(renderer: ^D3DRenderer) -> bool {
+	result := renderer.swapchain->GetBuffer(
+		0,
+		d3d11.ITexture2D_UUID,
+		(^rawptr)(&renderer.framebuffer),
+	)
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln(
+			"Could not get framebuffer from swapchain (%X)",
+			u32(result),
+		)
+		return false
+	}
+
+	result =
+	renderer.device->CreateRenderTargetView(
+		renderer.framebuffer,
+		nil,
+		&renderer.framebuffer_view,
+	)
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln(
+			"Could not create render target (framebuffer) view (%X)",
+			u32(result),
+		)
+		return false
+	}
+
+	depth_buffer_description: d3d11.TEXTURE2D_DESC
+	renderer.framebuffer->GetDesc(&depth_buffer_description)
+	depth_buffer_description.Format = .D24_UNORM_S8_UINT
+	depth_buffer_description.BindFlags = {.DEPTH_STENCIL}
+
+	renderer.viewport = {
+		0,
+		0,
+		f32(depth_buffer_description.Width),
+		f32(depth_buffer_description.Height),
+		0,
+		1,
+	}
+
+	result =
+	renderer.device->CreateTexture2D(
+		&depth_buffer_description,
+		nil,
+		&renderer.depth_buffer,
+	)
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln("Could not create depth buffer (%X)", u32(result))
+		return false
+	}
+
+	result =
+	renderer.device->CreateDepthStencilView(
+		renderer.depth_buffer,
+		nil,
+		&renderer.depth_buffer_view,
+	)
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintln("Could not create depth buffer view (%X)", u32(result))
+		return false
+	}
+
+	return true
 }

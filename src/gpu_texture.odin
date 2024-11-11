@@ -81,3 +81,8 @@ upload_texture_to_gpu :: proc(
 
 	return gpu_texture, true
 }
+
+destroy_gpu_texture :: proc(gpu_texture: GpuTexture) {
+	gpu_texture.texture->Release()
+	gpu_texture.view->Release()
+}
