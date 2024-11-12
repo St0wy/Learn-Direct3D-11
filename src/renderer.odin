@@ -88,7 +88,6 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 		return renderer, false
 	}
 
-
 	when ODIN_DEBUG {
 		result =
 		renderer.device->QueryInterface(
@@ -134,8 +133,8 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 		Stereo = false,
 		SampleDesc = {Count = 1, Quality = 0},
 		BufferUsage = {.RENDER_TARGET_OUTPUT},
-		BufferCount = 2,
-		Scaling = .STRETCH,
+		BufferCount = 3,
+		Scaling = .NONE,
 		SwapEffect = .FLIP_DISCARD,
 		AlphaMode = .UNSPECIFIED,
 		Flags = {},
@@ -477,20 +476,35 @@ present :: proc(renderer: ^D3DRenderer) {
 }
 
 resize_renderer :: proc(renderer: ^D3DRenderer, size: [2]i32) -> bool {
+	assert(size.x > 0 && size.y > 0)
+
+	fmt.printfln("Resizing renderer to : %i %i", size.x, size.y)
+
 	renderer.device_context->OMSetRenderTargets(0, nil, nil)
 
+	renderer.framebuffer->Release()
+	renderer.framebuffer = nil
 	renderer.framebuffer_view->Release()
+	renderer.framebuffer_view = nil
+
+	renderer.depth_buffer->Release()
+	renderer.depth_buffer = nil
 	renderer.depth_buffer_view->Release()
+	renderer.depth_buffer_view = nil
 
 	renderer.device_context->Flush()
+
 	result := renderer.swapchain->ResizeBuffers(
-		2,
+		3,
 		u32(size.x),
 		u32(size.y),
 		.B8G8R8A8_UNORM,
 		{},
 	)
-	if (!win32.SUCCEEDED(result)) {return false}
+	if (!win32.SUCCEEDED(result)) {
+		fmt.eprintfln("Could not resize swapchain buffers : %X", u32(result))
+		return false
+	}
 
 	could_setup_swapchain := setup_swapchain(renderer)
 	if (!could_setup_swapchain) {return false}

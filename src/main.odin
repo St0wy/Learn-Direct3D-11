@@ -148,7 +148,8 @@ main :: proc() {
 			}
 
 			if (window.event.type == .WindowResized) {
-				resize_renderer(&renderer, window.size)
+				could_resize := resize_renderer(&renderer, window.size)
+				assert(could_resize)
 			}
 		}
 
