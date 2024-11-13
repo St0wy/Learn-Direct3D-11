@@ -1,4 +1,4 @@
-package main
+package rendering
 
 import "core:math"
 import glm "core:math/linalg/glsl"

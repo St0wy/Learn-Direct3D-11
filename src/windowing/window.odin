@@ -1,4 +1,4 @@
-package main
+package windowing
 
 import "base:intrinsics"
 import win32 "core:sys/windows"

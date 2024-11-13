@@ -1,4 +1,4 @@
-package main
+package rendering
 
 import "core:fmt"
 import win32 "core:sys/windows"

@@ -1,4 +1,4 @@
-package main
+package rendering
 
 import "core:bytes"
 import "core:fmt"

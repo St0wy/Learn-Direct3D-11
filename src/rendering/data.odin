@@ -1,4 +1,4 @@
-package main
+package rendering
 
 TEXTURE_WIDTH  :: 2
 TEXTURE_HEIGHT :: 2
