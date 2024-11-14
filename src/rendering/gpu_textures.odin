@@ -10,6 +10,29 @@ GpuTexture :: struct {
 	view:    ^d3d11.IShaderResourceView,
 }
 
+GpuTexturesManager :: struct {
+	gpu_textures: [dynamic]GpuTexture,
+}
+
+GpuTextureId :: distinct u32
+
+// This is useless for now, but maybe in the future this will use generation indices and the like
+add_texture :: proc(
+	manager: ^GpuTexturesManager,
+	gpu_texture: GpuTexture,
+) -> GpuTextureId {
+	added_id := append(&manager.gpu_textures, gpu_texture)
+	return GpuTextureId(added_id)
+}
+
+destroy_gpu_textures_manager :: proc(manager: GpuTexturesManager) {
+	for gpu_texture in manager.gpu_textures {
+		destroy_gpu_texture(gpu_texture)
+	}
+	
+	delete(manager.gpu_textures)
+}
+
 figure_out_gpu_texture_format :: proc(
 	texture: Texture,
 ) -> (
@@ -29,7 +52,7 @@ upload_texture_to_gpu :: proc(
 	renderer: ^D3DRenderer,
 	texture: Texture,
 ) -> (
-	GpuTexture,
+	GpuTextureId,
 	bool,
 ) {
 	gpu_texture: GpuTexture
@@ -39,7 +62,7 @@ upload_texture_to_gpu :: proc(
 	)
 	if (!could_figure_out) {
 		fmt.eprintfln("Texture format not supported by the renderer.")
-		return gpu_texture, false
+		return 0, false
 	}
 
 	texture_description := d3d11.TEXTURE2D_DESC {
@@ -65,7 +88,7 @@ upload_texture_to_gpu :: proc(
 	)
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not create gpu texture (%X)", u32(result))
-		return gpu_texture, false
+		return 0, false
 	}
 
 	result =
@@ -76,10 +99,11 @@ upload_texture_to_gpu :: proc(
 	)
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not create gpu texture view (%X)", u32(result))
-		return gpu_texture, false
+		return 0, false
 	}
 
-	return gpu_texture, true
+	id := add_texture(&renderer.gpu_textures_manager, gpu_texture)
+	return id, true
 }
 
 destroy_gpu_texture :: proc(gpu_texture: GpuTexture) {

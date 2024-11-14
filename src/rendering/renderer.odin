@@ -7,26 +7,30 @@ import d3d "vendor:directx/d3d_compiler"
 import "vendor:directx/dxgi"
 
 D3DRenderer :: struct {
-	window_handle:       win32.HWND,
-	base_device:         ^d3d11.IDevice,
-	base_device_context: ^d3d11.IDeviceContext,
-	device:              ^d3d11.IDevice,
-	device_context:      ^d3d11.IDeviceContext,
-	dxgi_device:         ^dxgi.IDevice,
-	dxgi_adapter:        ^dxgi.IAdapter,
-	dxgi_factory:        ^dxgi.IFactory2,
-	swapchain:           ^dxgi.ISwapChain1,
-	framebuffer:         ^d3d11.ITexture2D,
-	framebuffer_view:    ^d3d11.IRenderTargetView,
-	depth_buffer:        ^d3d11.ITexture2D,
-	depth_buffer_view:   ^d3d11.IDepthStencilView,
-	rasterizer_state:    ^d3d11.IRasterizerState,
-	sampler_state:       ^d3d11.ISamplerState,
-	depth_stencil_state: ^d3d11.IDepthStencilState,
-	viewport:            d3d11.VIEWPORT,
-	main_pipeline:       Pipeline,
-	constant_buffer:     ^d3d11.IBuffer,
-	debug:               ^d3d11.IDebug,
+	// D3D11 stuff
+	window_handle:        win32.HWND,
+	base_device:          ^d3d11.IDevice,
+	base_device_context:  ^d3d11.IDeviceContext,
+	device:               ^d3d11.IDevice,
+	device_context:       ^d3d11.IDeviceContext,
+	dxgi_device:          ^dxgi.IDevice,
+	dxgi_adapter:         ^dxgi.IAdapter,
+	dxgi_factory:         ^dxgi.IFactory2,
+	swapchain:            ^dxgi.ISwapChain1,
+	framebuffer:          ^d3d11.ITexture2D,
+	framebuffer_view:     ^d3d11.IRenderTargetView,
+	depth_buffer:         ^d3d11.ITexture2D,
+	depth_buffer_view:    ^d3d11.IDepthStencilView,
+	rasterizer_state:     ^d3d11.IRasterizerState,
+	sampler_state:        ^d3d11.ISamplerState,
+	depth_stencil_state:  ^d3d11.IDepthStencilState,
+	viewport:             d3d11.VIEWPORT,
+	debug:                ^d3d11.IDebug,
+	// My own stuff
+	gpu_textures_manager: GpuTexturesManager,
+	// Things that will maybe move
+	main_pipeline:        Pipeline,
+	constant_buffer:      ^d3d11.IBuffer,
 }
 
 Pipeline :: struct {
@@ -228,6 +232,8 @@ destroy_renderer :: proc(renderer: ^D3DRenderer) {
 	renderer.dxgi_adapter->Release()
 	renderer.dxgi_factory->Release()
 	renderer.swapchain->Release()
+
+	destroy_gpu_textures_manager(renderer.gpu_textures_manager)
 
 	when ODIN_DEBUG {
 		renderer.debug->ReportLiveDeviceObjects({.DETAIL})
