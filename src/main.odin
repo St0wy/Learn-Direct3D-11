@@ -126,21 +126,25 @@ main :: proc() {
 	assert(could_init_const_buffer)
 	defer rendering.destroy_constant_buffer(&renderer)
 
-	model := rendering.get_nice_model()
+	mesh := rendering.get_nice_mesh_data()
+	texture := rendering.get_nice_texture_data()
 
-	gpu_mesh, could_upload_mesh := rendering.upload_mesh_to_gpu(
+	gpu_mesh_id, could_upload_mesh := rendering.upload_mesh_to_gpu(
 		&renderer,
-		model.mesh,
+		mesh,
 	)
 	assert(could_upload_mesh)
-	defer rendering.destroy_gpu_mesh(&gpu_mesh)
 
-	gpu_texture, could_upload_texture := rendering.upload_texture_to_gpu(
+	gpu_texture_id, could_upload_texture := rendering.upload_texture_to_gpu(
 		&renderer,
-		model.material.base_color_texture,
+		texture,
 	)
 	assert(could_upload_texture)
-	defer rendering.destroy_gpu_texture(gpu_texture)
+
+	demo_material_id := rendering.create_demo_material(
+		&renderer.materials_manager,
+		gpu_texture_id,
+	)
 
 	windowing.show_window(&window)
 
@@ -160,7 +164,10 @@ main :: proc() {
 			}
 
 			if (window.event.type == .WindowResized) {
-				could_resize := rendering.resize_renderer(&renderer, window.size)
+				could_resize := rendering.resize_renderer(
+					&renderer,
+					window.size,
+				)
 				assert(could_resize)
 			}
 		}
@@ -202,19 +209,27 @@ main :: proc() {
 			0,
 		}
 
-		could_upload_const_buff := rendering.upload_constant_buffer(&renderer, constants)
+		could_upload_const_buff := rendering.upload_constant_buffer(
+			&renderer,
+			constants,
+		)
 		assert(could_upload_const_buff)
 
-		clear_color := rendering.linear_to_srgb(glm.vec3({0.025, 0.025, 0.025}))
-		rendering.clear(&renderer, {clear_color.r, clear_color.g, clear_color.b, 1.0})
+		clear_color := rendering.linear_to_srgb(
+			glm.vec3({0.025, 0.025, 0.025}),
+		)
+		rendering.clear(
+			&renderer,
+			{clear_color.r, clear_color.g, clear_color.b, 1.0},
+		)
 
 		rendering.setup_renderer_state(&renderer)
-		rendering.setup_main_pipeline(&renderer, gpu_texture)
+		rendering.setup_main_pipeline(&renderer)
 
 		if (windowing.is_window_minimized(&window)) {
 			time.sleep(time.Millisecond * 200)
 		} else {
-			rendering.draw_mesh(&renderer, gpu_mesh)
+			rendering.draw_mesh(&renderer, gpu_mesh_id, demo_material_id)
 		}
 
 		rendering.present(&renderer)

@@ -21,15 +21,22 @@ add_texture :: proc(
 	manager: ^GpuTexturesManager,
 	gpu_texture: GpuTexture,
 ) -> GpuTextureId {
-	added_id := append(&manager.gpu_textures, gpu_texture)
-	return GpuTextureId(added_id)
+	append(&manager.gpu_textures, gpu_texture)
+	return GpuTextureId(len(manager.gpu_textures) - 1)
+}
+
+get_tex :: proc(
+	manager: GpuTexturesManager,
+	texture_id: GpuTextureId,
+) -> GpuTexture {
+	return manager.gpu_textures[texture_id]
 }
 
 destroy_gpu_textures_manager :: proc(manager: GpuTexturesManager) {
 	for gpu_texture in manager.gpu_textures {
 		destroy_gpu_texture(gpu_texture)
 	}
-	
+
 	delete(manager.gpu_textures)
 }
 

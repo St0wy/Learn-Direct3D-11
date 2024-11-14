@@ -28,6 +28,8 @@ D3DRenderer :: struct {
 	debug:                ^d3d11.IDebug,
 	// My own stuff
 	gpu_textures_manager: GpuTexturesManager,
+	gpu_mesh_manager:     GpuMeshManager,
+	materials_manager:    MaterialsManager,
 	// Things that will maybe move
 	main_pipeline:        Pipeline,
 	constant_buffer:      ^d3d11.IBuffer,
@@ -234,6 +236,8 @@ destroy_renderer :: proc(renderer: ^D3DRenderer) {
 	renderer.swapchain->Release()
 
 	destroy_gpu_textures_manager(renderer.gpu_textures_manager)
+	destroy_gpu_mesh_manager(renderer.gpu_mesh_manager)
+	destroy_materials_manager(renderer.materials_manager)
 
 	when ODIN_DEBUG {
 		renderer.debug->ReportLiveDeviceObjects({.DETAIL})
@@ -400,11 +404,7 @@ clear :: proc(renderer: ^D3DRenderer, clear_color: [4]f32) {
 	)
 }
 
-// TODO : Maybe find a better word than "setup"
-// TODO : Remove the texture from here and do smth like a material system
-setup_main_pipeline :: proc(renderer: ^D3DRenderer, gpu_texture: GpuTexture) {
-	gpu_texture := gpu_texture
-
+setup_main_pipeline :: proc(renderer: ^D3DRenderer) {
 	renderer.device_context->IASetInputLayout(
 		renderer.main_pipeline.input_layout,
 	)
@@ -426,10 +426,21 @@ setup_main_pipeline :: proc(renderer: ^D3DRenderer, gpu_texture: GpuTexture) {
 		1,
 		&renderer.constant_buffer,
 	)
+}
 
-	// TODO : Move this somewhere else ?
-	renderer.device_context->PSSetShaderResources(0, 1, &gpu_texture.view)
-	renderer.device_context->PSSetSamplers(0, 1, &renderer.sampler_state)
+setup_material_resources :: proc(
+	renderer: ^D3DRenderer,
+	material_id: MaterialId,
+) {
+
+	material := get_mat(renderer.materials_manager, material_id)
+	switch mat in material {
+	case DemoMaterial:
+		base_color_view :=
+			get_tex(renderer.gpu_textures_manager, mat.base_color_id).view
+		renderer.device_context->PSSetShaderResources(0, 1, &base_color_view)
+		renderer.device_context->PSSetSamplers(0, 1, &renderer.sampler_state)
+	}
 }
 
 setup_renderer_state :: proc(renderer: ^D3DRenderer) {
@@ -450,8 +461,14 @@ setup_renderer_state :: proc(renderer: ^D3DRenderer) {
 	renderer.device_context->OMSetBlendState(nil, nil, ~u32(0))
 }
 
-draw_mesh :: proc(renderer: ^D3DRenderer, gpu_mesh: GpuMesh) {
-	gpu_mesh := gpu_mesh
+draw_mesh :: proc(
+	renderer: ^D3DRenderer,
+	gpu_mesh_id: GpuMeshId,
+	material_id: MaterialId,
+) {
+	setup_material_resources(renderer, material_id)
+
+	gpu_mesh := get_gpu_mesh(renderer.gpu_mesh_manager, gpu_mesh_id)
 
 	vertex_buffer_offset := u32(0)
 

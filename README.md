@@ -3,9 +3,9 @@
 ## Want to do
 
 - [x] Window resizing
+- [ ] Pipeline / Material system
 - [ ] Scene graph
 - [ ] Camera controls
-- [ ] Pipeline / Material system
 - [ ] ImGui
 - [ ] Perf counter with CPU / GPU Time
 - [ ] Option to change resolution

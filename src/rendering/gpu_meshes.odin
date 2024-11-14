@@ -11,11 +11,29 @@ GpuMesh :: struct {
 	index_buffer_len:     u32,
 }
 
+GpuMeshManager :: struct {
+	meshes: [dynamic]GpuMesh,
+}
+
+GpuMeshId :: distinct u32
+
+get_gpu_mesh :: proc(manager: GpuMeshManager, id: GpuMeshId) -> GpuMesh {
+	return manager.meshes[id]
+}
+
+add_gpu_mesh :: proc(
+	manager: ^GpuMeshManager,
+	gpu_mesh: GpuMesh,
+) -> GpuMeshId {
+	append(&manager.meshes, gpu_mesh)
+	return GpuMeshId(len(manager.meshes) - 1)
+}
+
 upload_mesh_to_gpu :: proc(
 	renderer: ^D3DRenderer,
 	mesh: Mesh,
 ) -> (
-	GpuMesh,
+	GpuMeshId,
 	bool,
 ) {
 	gpu_mesh: GpuMesh
@@ -38,7 +56,7 @@ upload_mesh_to_gpu :: proc(
 
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not create vertex buffer (%X)", u32(result))
-		return gpu_mesh, false
+		return 0, false
 	}
 
 	byte_indices_size := u32(size_of(u32) * len(mesh.indices))
@@ -59,16 +77,26 @@ upload_mesh_to_gpu :: proc(
 	)
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not create index buffer (%X)", u32(result))
-		return gpu_mesh, false
+		return 0, false
 	}
 
 	gpu_mesh.vertex_buffer_stride = size_of(Vertex)
 	gpu_mesh.index_buffer_len = u32(len(mesh.indices))
 
-	return gpu_mesh, true
+	gpu_mesh_id := add_gpu_mesh(&renderer.gpu_mesh_manager, gpu_mesh)
+
+	return gpu_mesh_id, true
 }
 
-destroy_gpu_mesh :: proc(gpu_mesh: ^GpuMesh) {
+destroy_gpu_mesh_manager :: proc(manager: GpuMeshManager) {
+	for mesh in manager.meshes {
+		destroy_gpu_mesh(mesh)
+	}
+
+	delete(manager.meshes)
+}
+
+destroy_gpu_mesh :: proc(gpu_mesh: GpuMesh) {
 	gpu_mesh.index_buffer->Release()
 	gpu_mesh.vertex_buffer->Release()
 }

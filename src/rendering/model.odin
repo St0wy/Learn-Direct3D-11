@@ -9,19 +9,15 @@ Vertex :: struct {
 	color:               glm.vec3,
 }
 
+// TODO : Create mesh manager + mesh id
 Mesh :: struct {
 	vertices: []Vertex,
 	indices:  []u32,
 }
 
-// For now there is just one material type, but in the future there will be multiple
-Material :: struct {
-	base_color_texture: Texture,
-}
-
 Model :: struct {
-	mesh:     Mesh,
-	material: Material,
+	mesh:        Mesh,
+	material_id: MaterialId,
 }
 
 load_model_from_obj_path :: proc(obj_path: string) -> (Model, bool) {

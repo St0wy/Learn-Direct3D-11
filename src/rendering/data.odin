@@ -26,14 +26,6 @@ get_nice_mesh_data :: proc() -> Mesh {
 	return mesh
 }
 
-get_nice_model :: proc() -> Model {
-	model: Model
-	model.material.base_color_texture = get_nice_texture_data()
-	model.mesh = get_nice_mesh_data()
-
-	return model
-}
-
 texture_data := [TEXTURE_WIDTH*TEXTURE_HEIGHT]u32{
 	0xffffffff, 0xff7f7f7f,
 	0xff7f7f7f, 0xffffffff,
