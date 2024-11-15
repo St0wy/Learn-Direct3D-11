@@ -1,5 +1,7 @@
 # Learn-Direct3D-11
 
+This project is made to learn the Odin programming language and Direct3D 11.
+
 ## Want to do
 
 - [x] Window resizing
