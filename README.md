@@ -2,6 +2,8 @@
 
 This project is made to learn the Odin programming language and Direct3D 11.
 
+The design of the code tries to improve on my previous rendrerer : https://github.com/St0wy/opengl-scene.
+
 ## Want to do
 
 - [x] Window resizing
