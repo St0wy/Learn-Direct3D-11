@@ -6,7 +6,7 @@ The design of the code tries to improve on my previous rendrerer : https://githu
 
 ## Want to do
 
-- [x] Window resizing
+- [x] Window Resizing
 - [ ] Pipeline / Material system
 - [ ] Scene graph
 - [ ] Camera controls
