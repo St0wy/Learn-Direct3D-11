@@ -48,7 +48,6 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 	renderer: D3DRenderer
 	renderer.window_handle = window_handle
 
-
 	feature_levels := [1]d3d11.FEATURE_LEVEL{._11_0}
 
 	device_flags := d3d11.CREATE_DEVICE_FLAGS{.BGRA_SUPPORT}
