@@ -7,7 +7,8 @@ The design of the code tries to improve on my previous rendrerer : https://githu
 ## Want to do
 
 - [x] Window Resizing
-- [ ] Pipeline / Material system
+- [x] First version of a Material system
+- [ ] Separate the notion of a material / pipeline from the renderer and give an API to create shaders
 - [ ] Scene graph
 - [ ] Camera controls
 - [ ] ImGui

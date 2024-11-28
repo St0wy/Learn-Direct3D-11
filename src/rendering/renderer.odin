@@ -44,6 +44,7 @@ Pipeline :: struct {
 	is_initialized: bool,
 }
 
+// TODO : Investigate why the base device and then device
 create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 	renderer: D3DRenderer
 	renderer.window_handle = window_handle
@@ -65,7 +66,7 @@ create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 		len(feature_levels),
 		d3d11.SDK_VERSION,
 		&renderer.base_device,
-		nil,
+		nil, // This returns the feature levels
 		&renderer.base_device_context,
 	)
 	if (!win32.SUCCEEDED(result)) {
@@ -403,6 +404,7 @@ clear :: proc(renderer: ^D3DRenderer, clear_color: [4]f32) {
 	)
 }
 
+// TODO : Return the pipeline and don't store it
 setup_main_pipeline :: proc(renderer: ^D3DRenderer) {
 	renderer.device_context->IASetInputLayout(
 		renderer.main_pipeline.input_layout,
@@ -460,6 +462,7 @@ setup_renderer_state :: proc(renderer: ^D3DRenderer) {
 	renderer.device_context->OMSetBlendState(nil, nil, ~u32(0))
 }
 
+// TODO Pass pipeline into this
 draw_mesh :: proc(
 	renderer: ^D3DRenderer,
 	gpu_mesh_id: GpuMeshId,

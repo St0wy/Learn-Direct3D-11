@@ -23,9 +23,6 @@ main :: proc() {
 		mem.tracking_allocator_init(&track_alloc, context.allocator)
 		context.allocator = mem.tracking_allocator(&track_alloc)
 		defer {
-			// At the end of the program, lets print out the results
-
-			// Memory leaks
 			for _, entry in track_alloc.allocation_map {
 				fmt.eprintf(
 					"\n- %v leaked %v bytes",
@@ -33,15 +30,11 @@ main :: proc() {
 					entry.size,
 				)
 			}
-			// Double free etc.
+
 			for entry in track_alloc.bad_free_array {
 				fmt.eprintf("\n- %v bad free\n", entry.location)
 			}
 			mem.tracking_allocator_destroy(&track_alloc)
-
-			// Free the temp_allocator so we don't forget it
-			// The temp_allocator can be used to allocate temporary memory
-			free_all(context.temp_allocator)
 		}
 	}
 
