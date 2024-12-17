@@ -9,18 +9,24 @@ Vertex :: struct {
 	color:               glm.vec3,
 }
 
-// TODO : Create mesh manager + mesh id
 Mesh :: struct {
 	vertices: []Vertex,
 	indices:  []u32,
 }
 
+MeshManager :: struct {
+	meshes: [dynamic]Mesh,
+}
+
+MeshId :: distinct u32
+
+// TODO : Check if model is a good idea
 Model :: struct {
-	mesh:        Mesh,
+	mesh_id:     MeshId,
 	material_id: MaterialId,
 }
 
 load_model_from_obj_path :: proc(obj_path: string) -> (Model, bool) {
-	mesh: Model
-	return mesh, false
+	model: Model
+	return model, false
 }

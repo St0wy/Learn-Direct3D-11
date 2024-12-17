@@ -31,7 +31,7 @@ D3DRenderer :: struct {
 	gpu_mesh_manager:     GpuMeshManager,
 	materials_manager:    MaterialsManager,
 	// Things that will maybe move
-	main_pipeline:        Pipeline,
+	// main_pipeline:        Pipeline,
 	constant_buffer:      ^d3d11.IBuffer,
 }
 
@@ -44,7 +44,6 @@ Pipeline :: struct {
 	is_initialized: bool,
 }
 
-// TODO : Investigate why the base device and then device
 create_renderer :: proc(window_handle: win32.HWND) -> (D3DRenderer, bool) {
 	renderer: D3DRenderer
 	renderer.window_handle = window_handle
@@ -255,10 +254,16 @@ PipelineDescriptor :: struct {
 	pixel_shader_entry:        cstring,
 }
 
-init_main_pipeline :: proc(
+// TODO : Return the pipeline and don't store it
+create_pipeline :: proc(
 	renderer: ^D3DRenderer,
 	pipeline_descriptor: PipelineDescriptor,
-) -> bool {
+) -> (
+	Pipeline,
+	bool,
+) {
+	pipeline: Pipeline
+
 	result := d3d.Compile(
 		raw_data(pipeline_descriptor.vertex_shader_source),
 		len(pipeline_descriptor.vertex_shader_source),
@@ -269,37 +274,37 @@ init_main_pipeline :: proc(
 		"vs_5_0",
 		0,
 		0,
-		&renderer.main_pipeline.vs_blob,
+		&pipeline.vs_blob,
 		nil,
 	)
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not compile vertex shader (%X)", u32(result))
-		return false
+		return pipeline, false
 	}
 
 	result =
 	renderer.device->CreateVertexShader(
-		renderer.main_pipeline.vs_blob->GetBufferPointer(),
-		renderer.main_pipeline.vs_blob->GetBufferSize(),
+		pipeline.vs_blob->GetBufferPointer(),
+		pipeline.vs_blob->GetBufferSize(),
 		nil,
-		&renderer.main_pipeline.vertex_shader,
+		&pipeline.vertex_shader,
 	)
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not create vertex shader (%X)", u32(result))
-		return false
+		return pipeline, false
 	}
 
 	result =
 	renderer.device->CreateInputLayout(
 		&pipeline_descriptor.input_element_description[0],
 		cast(u32)len(pipeline_descriptor.input_element_description),
-		renderer.main_pipeline.vs_blob->GetBufferPointer(),
-		renderer.main_pipeline.vs_blob->GetBufferSize(),
-		&renderer.main_pipeline.input_layout,
+		pipeline.vs_blob->GetBufferPointer(),
+		pipeline.vs_blob->GetBufferSize(),
+		&pipeline.input_layout,
 	)
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not create input layout (%X)", u32(result))
-		return false
+		return pipeline, false
 	}
 
 	result = d3d.Compile(
@@ -312,30 +317,30 @@ init_main_pipeline :: proc(
 		"ps_5_0",
 		0,
 		0,
-		&renderer.main_pipeline.ps_blob,
+		&pipeline.ps_blob,
 		nil,
 	)
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not compile pixel shader (%X)", u32(result))
-		return false
+		return pipeline, false
 	}
 
 	result =
 	renderer.device->CreatePixelShader(
-		renderer.main_pipeline.ps_blob->GetBufferPointer(),
-		renderer.main_pipeline.ps_blob->GetBufferSize(),
+		pipeline.ps_blob->GetBufferPointer(),
+		pipeline.ps_blob->GetBufferSize(),
 		nil,
-		&renderer.main_pipeline.pixel_shader,
+		&pipeline.pixel_shader,
 	)
 	if (!win32.SUCCEEDED(result)) {
 		fmt.eprintln("Could not create pixel shader (%X)", u32(result))
-		return false
+		return pipeline, false
 	}
 
-	return true
+	return pipeline, true
 }
 
-destroy_pipeline :: proc(pipeline: ^Pipeline) {
+destroy_pipeline :: proc(pipeline: Pipeline) {
 	pipeline.input_layout->Release()
 
 	pipeline.vs_blob->Release()
@@ -404,23 +409,18 @@ clear :: proc(renderer: ^D3DRenderer, clear_color: [4]f32) {
 	)
 }
 
-// TODO : Return the pipeline and don't store it
-setup_main_pipeline :: proc(renderer: ^D3DRenderer) {
-	renderer.device_context->IASetInputLayout(
-		renderer.main_pipeline.input_layout,
-	)
+// The const buffer is stored inside the renderer struct
+// ? FIXME: Maybe I should find a better way to handle const buffers, but I spent too much time on this API stuff
+// ? So this is a problem for future me
+bind_pipeline_and_const_buffer :: proc(
+	renderer: ^D3DRenderer,
+	pipeline: Pipeline,
+) {
+	renderer.device_context->IASetInputLayout(pipeline.input_layout)
 
-	renderer.device_context->VSSetShader(
-		renderer.main_pipeline.vertex_shader,
-		nil,
-		0,
-	)
+	renderer.device_context->VSSetShader(pipeline.vertex_shader, nil, 0)
 
-	renderer.device_context->PSSetShader(
-		renderer.main_pipeline.pixel_shader,
-		nil,
-		0,
-	)
+	renderer.device_context->PSSetShader(pipeline.pixel_shader, nil, 0)
 
 	renderer.device_context->VSSetConstantBuffers(
 		0,
@@ -462,12 +462,14 @@ setup_renderer_state :: proc(renderer: ^D3DRenderer) {
 	renderer.device_context->OMSetBlendState(nil, nil, ~u32(0))
 }
 
-// TODO Pass pipeline into this
 draw_mesh :: proc(
 	renderer: ^D3DRenderer,
 	gpu_mesh_id: GpuMeshId,
 	material_id: MaterialId,
+	pipeline: Pipeline,
 ) {
+	bind_pipeline_and_const_buffer(renderer, pipeline)
+
 	setup_material_resources(renderer, material_id)
 
 	gpu_mesh := get_gpu_mesh(renderer.gpu_mesh_manager, gpu_mesh_id)

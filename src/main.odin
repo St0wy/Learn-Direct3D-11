@@ -96,8 +96,7 @@ main :: proc() {
 		},
 	}
 
-	// I don't know yet if pipelines should be handled here or inside the renderer
-	could_create_pipeline := rendering.init_main_pipeline(
+	main_pipeline, could_create_pipeline := rendering.create_pipeline(
 		&renderer,
 		{
 			vertex_shader_source = shader_source,
@@ -110,7 +109,7 @@ main :: proc() {
 		},
 	)
 	assert(could_create_pipeline)
-	defer rendering.destroy_pipeline(&renderer.main_pipeline)
+	defer rendering.destroy_pipeline(main_pipeline)
 
 	could_init_const_buffer := rendering.init_constant_buffer(
 		&renderer,
@@ -217,12 +216,11 @@ main :: proc() {
 		)
 
 		rendering.setup_renderer_state(&renderer)
-		rendering.setup_main_pipeline(&renderer)
 
 		if (windowing.is_window_minimized(&window)) {
 			time.sleep(time.Millisecond * 200)
 		} else {
-			rendering.draw_mesh(&renderer, gpu_mesh_id, demo_material_id)
+			rendering.draw_mesh(&renderer, gpu_mesh_id, demo_material_id, main_pipeline)
 		}
 
 		rendering.present(&renderer)
