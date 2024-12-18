@@ -12,8 +12,9 @@ import "rendering"
 import "windowing"
 
 Constants :: struct #align (16) {
-	transform:    glm.mat4,
-	projection:   glm.mat4,
+	transform: glm.mat4,
+	view: glm.mat4,
+	projection: glm.mat4,
 	light_vector: glm.vec3,
 }
 
@@ -143,6 +144,11 @@ main :: proc() {
 	model_rotation := glm.vec3{0.0, 0.0, 0.0}
 	model_translation := glm.vec3{0.0, 0.0, 4.0}
 
+	camera := make_camera(
+		position = glm.vec3{0, 0, -10},
+		aspect_ratio = renderer.viewport.Width / renderer.viewport.Height,
+	)
+
 	should_quit := false
 	for (!should_quit) {
 		for (windowing.check_window_event(&window) != nil) {
@@ -164,10 +170,10 @@ main :: proc() {
 			}
 		}
 
-		w := f32(renderer.viewport.Width) / f32(renderer.viewport.Height)
-		h := f32(1)
-		n := f32(1)
-		f := f32(9)
+		// w := f32(renderer.viewport.Width) / f32(renderer.viewport.Height)
+		// h := f32(1)
+		// n := f32(1)
+		// f := f32(9)
 
 		rotate_x := glm.mat4Rotate({1, 0, 0}, model_rotation.x)
 		rotate_y := glm.mat4Rotate({0, 1, 0}, model_rotation.y)
@@ -182,24 +188,8 @@ main :: proc() {
 		constants.transform = translate * rotate_z * rotate_y * rotate_x
 		constants.light_vector = {+1, -1, +1}
 
-		constants.projection = {
-			2 * n / w,
-			0,
-			0,
-			0,
-			0,
-			2 * n / h,
-			0,
-			0,
-			0,
-			0,
-			f / (f - n),
-			n * f / (n - f),
-			0,
-			0,
-			1,
-			0,
-		}
+		constants.view = camera.view_matrix
+		constants.projection = camera.projection_matrix
 
 		could_upload_const_buff := rendering.upload_constant_buffer(
 			&renderer,

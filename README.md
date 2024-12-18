@@ -8,8 +8,8 @@ The design of the code tries to improve on my previous rendrerer : https://githu
 
 - [x] Window Resizing
 - [x] First version of a Material system
-- [ ] Scene graph
 - [ ] Camera controls
+- [ ] Scene graph
 - [ ] OBJ Model Loading
 - [ ] ImGui
 - [ ] Perf counter with CPU / GPU Time

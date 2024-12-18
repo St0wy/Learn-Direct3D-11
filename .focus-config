@@ -1,0 +1,52 @@
+[6]  # Version number. Do not delete.
+
+[[workspace]]
+.
+
+[ignore]
+data
+out
+.vscode
+.jj
+.git
+
+
+[[build commands]]
+open_panel_on_build:    true
+clear_build_output_before_running: true
+error_regex: ^(?P<file>.*)\((?P<line>\d+):(?P<col>\d+)\) (?P<msg>.*)
+auto_jump_to_error: true
+
+[Debug Build And Run]
+build_command: pwsh build.ps1
+run_command: ./out/dbg/learn-directx-11.exe
+key_binding: F5
+
+[Run Debug]
+run_command: ./out/dbg/learn-directx-11.exe
+key_binding:            Ctrl-F5
+
+[Build Debug]
+build_command: pwsh build.ps1
+timeout_in_seconds: 5
+key_binding: Ctrl-Shift-B
+
+[Build Release]
+build_command: pwsh build.ps1 release
+key_binding: Ctrl-R
+
+[Run Release]
+run_command: ./out/rel/learn-directx-11.exe
+key_binding: F9
+
+[[style]]
+theme: halogen
+
+# NOTE:
+# You can use the following variables in build_command or run_command:
+# %FILE%      - full path to currenly active file
+# %FILE_DIR%  - the directory of the currently active file
+# %FILE_NAME% - current file name, with extension
+# %FILE_NAME_NO_EXTENSION% - current file name, without extension
+# %BUILD_WORKING_DIR% - working dir of the build command
+# %RUN_WORKING_DIR%   - working dir of the run command
