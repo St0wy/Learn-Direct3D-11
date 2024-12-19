@@ -2,6 +2,10 @@
 
 [[workspace]]
 .
+D:\odin\Odin\base
+D:\odin\Odin\core
+D:\odin\Odin\vendor
+
 
 [ignore]
 data
@@ -12,7 +16,7 @@ out
 
 
 [[build commands]]
-open_panel_on_build:    true
+open_panel_on_build:    false
 clear_build_output_before_running: true
 error_regex: ^(?P<file>.*)\((?P<line>\d+):(?P<col>\d+)\) (?P<msg>.*)
 auto_jump_to_error: true

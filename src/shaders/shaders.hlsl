@@ -1,7 +1,7 @@
 cbuffer constants : register(b0) {
 	float4x4 transform;
-	float4x4 view;
 	float4x4 projection;
+	float4x4 view;
 	float3 light_vector;
 }
 
@@ -24,7 +24,12 @@ SamplerState mysampler : register(s0);
 vs_out vs_main(vs_in input) {
 	float light = clamp(dot(normalize(mul(transform, float4(input.normal, 0.0f)).xyz), normalize(-light_vector)), 0.0f, 1.0f) * 0.8f + 0.2f;
 	vs_out output;
-	output.position = mul(projection, mul(view, mul(transform, float4(input.position, 1.0f))));
+
+	float4 object_space = float4(input.position, 1.0f);
+	float4 world_space = mul(transform, object_space);
+	float4 view_space = mul(view, world_space);
+	float4 clip_space = mul(projection, view_space);
+	output.position = clip_space;
 	output.texcoord = input.texcoord;
 	output.color    = float4(input.color * light, 1.0f);
 	return output;

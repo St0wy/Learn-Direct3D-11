@@ -278,7 +278,7 @@ create_pipeline :: proc(
 		nil,
 	)
 	if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln("Could not compile vertex shader (%X)", u32(result))
+		fmt.eprintfln("Could not compile vertex shader (%X)", u32(result))
 		return pipeline, false
 	}
 
@@ -290,7 +290,7 @@ create_pipeline :: proc(
 		&pipeline.vertex_shader,
 	)
 	if (!win32.SUCCEEDED(result)) {
-		fmt.eprintln("Could not create vertex shader (%X)", u32(result))
+		fmt.eprintfln("Could not create vertex shader (%X)", u32(result))
 		return pipeline, false
 	}
 

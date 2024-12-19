@@ -2,7 +2,7 @@ package main
 
 import "base:intrinsics"
 import "core:fmt"
-import glm "core:math/linalg/glsl"
+import "core:math/linalg"
 import "core:mem"
 import win32 "core:sys/windows"
 import "core:time"
@@ -12,10 +12,10 @@ import "rendering"
 import "windowing"
 
 Constants :: struct #align (16) {
-	transform: glm.mat4,
-	view: glm.mat4,
-	projection: glm.mat4,
-	light_vector: glm.vec3,
+	transform: Matrix4,
+	projection: Matrix4,
+	view: Matrix4,
+	light_vector: Vector3,
 }
 
 main :: proc() {
@@ -141,13 +141,15 @@ main :: proc() {
 
 	windowing.show_window(&window)
 
-	model_rotation := glm.vec3{0.0, 0.0, 0.0}
-	model_translation := glm.vec3{0.0, 0.0, 4.0}
+	model_rotation := Vector3{0.0, 0.0, 0.0}
+	model_translation := Vector3{0.0, 0.0, 4.0}
 
 	camera := make_camera(
-		position = glm.vec3{0, 0, -10},
+		position = Vector3{0, 0, -10},
 		aspect_ratio = renderer.viewport.Width / renderer.viewport.Height,
 	)
+	camera_process_movement(&camera, {}, 1.0/60.0)
+	camera_process_view(&camera, {0.1, 0.1})
 
 	should_quit := false
 	for (!should_quit) {
@@ -170,19 +172,29 @@ main :: proc() {
 			}
 		}
 
+		movement_state: CameraMovementSet
+		if windowing.is_key_pressed(&window, win32.VK_W) {movement_state |= {.Forward}}
+		if windowing.is_key_pressed(&window, win32.VK_S) {movement_state |= {.Backward}}
+		if windowing.is_key_pressed(&window, win32.VK_A) {movement_state |= {.Left}}
+		if windowing.is_key_pressed(&window, win32.VK_D) {movement_state |= {.Right}}
+		if windowing.is_key_pressed(&window, win32.VK_SPACE) {movement_state |= {.Up}}
+		if windowing.is_key_pressed(&window, win32.VK_SHIFT) {movement_state |= {.Down}}
+
+		camera_process_movement(&camera, movement_state, 1.0/60.0)
+
 		// w := f32(renderer.viewport.Width) / f32(renderer.viewport.Height)
 		// h := f32(1)
 		// n := f32(1)
 		// f := f32(9)
 
-		rotate_x := glm.mat4Rotate({1, 0, 0}, model_rotation.x)
-		rotate_y := glm.mat4Rotate({0, 1, 0}, model_rotation.y)
-		rotate_z := glm.mat4Rotate({0, 0, 1}, model_rotation.z)
-		translate := glm.mat4Translate(model_translation)
+		rotate_x := linalg.matrix4_rotate(model_rotation.x, Vector3{1, 0, 0})
+		rotate_y := linalg.matrix4_rotate(model_rotation.y, Vector3{0, 1, 0})
+		rotate_z := linalg.matrix4_rotate(model_rotation.z, Vector3{0, 0, 1})
+		translate := linalg.matrix4_translate(model_translation)
 
-		model_rotation.x += 0.005
-		model_rotation.y += 0.009
-		model_rotation.z += 0.001
+		// model_rotation.x += 0.005
+		// model_rotation.y += 0.009
+		// model_rotation.z += 0.001
 
 		constants: Constants
 		constants.transform = translate * rotate_z * rotate_y * rotate_x
@@ -198,7 +210,7 @@ main :: proc() {
 		assert(could_upload_const_buff)
 
 		clear_color := rendering.linear_to_srgb(
-			glm.vec3({0.025, 0.025, 0.025}),
+			Vector3{0.025, 0.025, 0.025},
 		)
 		rendering.clear(
 			&renderer,

@@ -17,7 +17,7 @@ If ($args[0] -eq "release") {
 
     odin build src -out:out/dbg/learn-directx-11.exe -o:minimal -show-timings -debug -vet-unused -vet-unused-variables -vet-unused-imports -vet-shadowing `
         -vet-using-stmt -vet-using-param -vet-style -vet-semicolon -vet-cast -vet-tabs -strict-style `
-        -warnings-as-errors
+        -warnings-as-errors -linker:radlink
 }
 
 exit $LASTEXITCODE
